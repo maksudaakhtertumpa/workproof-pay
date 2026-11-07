@@ -5,7 +5,6 @@
 Built for the [PayPal AI Hackathon 2026](https://paypalaihackathon.devpost.com/) · Python + FastAPI · Google Gemini · PayPal Invoicing API v2 + Webhooks (sandbox)
 
 - 🌐 **Live demo:** https://workproof-pay.onrender.com (free server: allow up to a minute to wake up)
-- 🎥 **Demo video:** _add YouTube link_
 - 🧪 **Demo proof-of-work repo:** https://github.com/maksudaakhtertumpa/kopi-labs-website
 
 ---
