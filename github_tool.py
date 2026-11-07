@@ -70,7 +70,8 @@ def fetch_commits(
                     "message": message[:500],
                     "date": c["commit"]["author"]["date"],
                     "author": c["commit"]["author"]["name"],
-                    "url": c["html_url"],
+                    # short SHA keeps the proof links readable on the invoice; GitHub resolves them
+                    "url": f"https://github.com/{owner}/{name}/commit/{c['sha'][:7]}",
                 }
             )
 

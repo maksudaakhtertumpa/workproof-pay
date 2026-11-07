@@ -132,6 +132,7 @@ class PayPalClient:
         note: str,
         due_in_days: int,
         memo: str = "",
+        seller_name: str = "",
     ) -> dict[str, Any]:
         """Create a DRAFT invoice. Each item: name, description, hours, rate."""
         today = seller_today()
@@ -167,12 +168,20 @@ class PayPalClient:
             ],
             "configuration": {"allow_tip": False, "tax_inclusive": False},
         }
-        resp = self._request(
-            "POST",
-            "/v2/invoicing/invoices",
-            json=body,
-            headers={"Prefer": "return=representation"},
-        )
+        if seller_name:
+            body["invoicer"] = {"business_name": seller_name[:300]}
+        try:
+            resp = self._request(
+                "POST", "/v2/invoicing/invoices", json=body, headers={"Prefer": "return=representation"}
+            )
+        except PayPalError as e:
+            if not seller_name or "invoicer" not in e.message.lower():
+                raise
+            # If PayPal rejects the custom seller name, fall back to the account's own name.
+            body.pop("invoicer", None)
+            resp = self._request(
+                "POST", "/v2/invoicing/invoices", json=body, headers={"Prefer": "return=representation"}
+            )
         data = resp.json()
         # Some responses only return a link to the new invoice; fetch it if so.
         if "id" not in data and data.get("href"):

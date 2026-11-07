@@ -25,6 +25,9 @@ GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.8-flash").strip()
 # Optional: raises the GitHub API limit from 60 to 5,000 requests per hour.
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "").strip()
 
+# Your business name, shown to the client on the PayPal invoice (instead of the account default).
+SELLER_NAME = os.getenv("SELLER_NAME", "").strip()
+
 # Defaults shown in the form (handy for the demo video).
 DEFAULT_CLIENT_NAME = os.getenv("DEFAULT_CLIENT_NAME", "Acme Ltd")
 DEFAULT_CLIENT_EMAIL = os.getenv("DEFAULT_CLIENT_EMAIL", "")

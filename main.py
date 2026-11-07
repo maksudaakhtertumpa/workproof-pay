@@ -248,6 +248,7 @@ def create_and_send_invoice(req: CreateInvoiceRequest):
         note=build_note(req),
         due_in_days=req.due_in_days,
         memo="Created by WorkProof Pay from verified proof of work.",
+        seller_name=config.SELLER_NAME,
     )
     send_result = pp.send_invoice(invoice["id"])
     sent = summarize_invoice(pp.get_invoice(invoice["id"]))
