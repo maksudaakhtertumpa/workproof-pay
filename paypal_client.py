@@ -235,6 +235,14 @@ class PayPalClient:
         )
 
 
+def payer_url_for(invoice_id: str) -> str | None:
+    """PayPal's client payment page, built from the invoice ID (the list API omits the link)."""
+    if not invoice_id.startswith("INV2-"):
+        return None
+    host = "www.sandbox.paypal.com" if os.getenv("PAYPAL_ENVIRONMENT", "SANDBOX").upper() != "LIVE" else "www.paypal.com"
+    return f"https://{host}/invoice/p/#{invoice_id[5:].replace('-', '')}"
+
+
 def summarize_invoice(inv: dict[str, Any]) -> dict[str, Any]:
     """Flatten a PayPal invoice into the fields the UI and the AI agent need."""
     detail = inv.get("detail", {})
@@ -263,6 +271,6 @@ def summarize_invoice(inv: dict[str, Any]) -> dict[str, Any]:
         "days_overdue": days_overdue,
         "is_open": status in OPEN_STATUSES,
         "is_paid": status in PAID_STATUSES,
-        "payer_url": metadata.get("recipient_view_url"),
+        "payer_url": metadata.get("recipient_view_url") or payer_url_for(inv.get("id", "")),
         "note": (detail.get("note") or "")[:600],
     }
