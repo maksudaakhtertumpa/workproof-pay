@@ -142,7 +142,7 @@ def test_create_send_list_and_remind(api, fake_paypal):
 
 def test_safety_limit(api, fake_paypal):
     r = api.post("/api/invoices", json={
-        "client_name": "Acme", "client_email": "a@b.co", "currency": "USD", "hourly_rate": 1000,
+        "client_name": "Acme", "client_email": "buyer@personal.example.com", "currency": "USD", "hourly_rate": 1000,
         "line_items": [{"name": "Huge", "hours": 100}],
     })
     assert r.status_code == 400 and "safety limit" in r.json()["detail"]
@@ -244,7 +244,7 @@ def test_milestones_tagging_and_scope(api, fake_paypal, monkeypatch):
     assert d["scope"]["out_of_scope"]["hours"] == 3
 
     inv = api.post("/api/invoices", json={
-        "client_name": "Kopi Labs", "client_email": "a@b.co", "currency": "USD", "hourly_rate": 40,
+        "client_name": "Kopi Labs", "client_email": "buyer@personal.example.com", "currency": "USD", "hourly_rate": 40,
         "line_items": [{"name": "Landing page", "hours": 6, "evidence": ["L1"], "milestone": "M1"},
                        {"name": "SEO extras", "hours": 2, "evidence": ["L3"], "milestone": "OUT"}],
         "evidence": {"L1": {"label": "built landing page", "url": ""}, "L3": {"label": "added SEO", "url": ""}},

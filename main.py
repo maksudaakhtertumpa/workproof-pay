@@ -6,6 +6,7 @@ Run locally:  uvicorn main:app --reload
 from __future__ import annotations
 
 import logging
+import re
 import time
 from collections import defaultdict, deque
 from datetime import date, timedelta
@@ -22,9 +23,9 @@ from pydantic import BaseModel, Field, field_validator
 import ai_agent
 import config
 from github_tool import GitHubError, fetch_commits
-from paypal_client import PayPalClient, PayPalError, money, summarize_invoice
+from paypal_client import PayPalClient, PayPalError, money, payer_url_for, summarize_invoice
 
-app = FastAPI(title="WorkProof Pay")
+app = FastAPI(title="WorkProof Pay", docs_url=None, redoc_url=None, openapi_url=None)
 log = logging.getLogger("uvicorn.error")
 STATIC = Path(__file__).parent / "static"
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
@@ -46,19 +47,37 @@ def require_gemini() -> None:
         raise HTTPException(503, "Gemini is not configured. Add GEMINI_API_KEY to .env")
 
 
-# ---- simple per-IP limit so a public demo URL can't burn the AI quota
-_hits: dict[str, deque] = defaultdict(deque)
+# ---- simple per-IP limits so a public demo URL can't burn the AI quota or spam PayPal
+_hits: dict[tuple[str, str], deque] = defaultdict(deque)
 
 
-def rate_limit(request: Request) -> None:
-    ip = request.headers.get("x-forwarded-for", request.client.host if request.client else "?").split(",")[0]
+def client_ip(request: Request) -> str:
+    # Render's proxy appends the real client address to X-Forwarded-For, so the LAST entry is
+    # trustworthy; earlier entries come from the caller and can be faked.
+    forwarded = [p.strip() for p in request.headers.get("x-forwarded-for", "").split(",") if p.strip()]
+    if forwarded:
+        return forwarded[-1]
+    return request.client.host if request.client else "?"
+
+
+def rate_limit(request: Request, bucket: str = "ai") -> None:
+    limit = config.AI_REQUESTS_PER_HOUR if bucket == "ai" else config.PAYPAL_REQUESTS_PER_HOUR
     now = time.time()
-    q = _hits[ip]
+    q = _hits[(bucket, client_ip(request))]
     while q and now - q[0] > 3600:
         q.popleft()
-    if len(q) >= config.AI_REQUESTS_PER_HOUR:
-        raise HTTPException(429, "Too many AI requests from this address. Please try again later.")
+    if len(q) >= limit:
+        what = "AI" if bucket == "ai" else "invoice"
+        raise HTTPException(429, f"Too many {what} requests from this address. Please try again in an hour.")
     q.append(now)
+
+
+INVOICE_ID = re.compile(r"^INV2-[A-Z0-9-]{4,40}$")
+
+
+def check_invoice_id(invoice_id: str) -> None:
+    if not INVOICE_ID.match(invoice_id):
+        raise HTTPException(400, "That is not a valid PayPal invoice ID.")
 
 
 @app.exception_handler(PayPalError)
@@ -74,6 +93,13 @@ async def timeout_handler(_: Request, exc: ai_agent.GeminiTimeout):
     from fastapi.responses import JSONResponse
 
     return JSONResponse(status_code=504, content={"detail": "The AI took too long to answer (Gemini is busy). Please try again."})
+
+
+@app.exception_handler(ai_agent.AIResponseError)
+async def ai_response_handler(_: Request, exc: ai_agent.AIResponseError):
+    from fastapi.responses import JSONResponse
+
+    return JSONResponse(status_code=502, content={"detail": str(exc)})
 
 
 @app.exception_handler(genai_errors.APIError)
@@ -141,6 +167,7 @@ class AnalyzeRequest(BaseModel):
 @app.post("/api/analyze")
 def analyze(req: AnalyzeRequest, request: Request):
     require_gemini()
+    rate_limit(request)
     if req.source == "github":
         if not req.repo:
             raise HTTPException(400, "Enter a GitHub repo, e.g. owner/repo")
@@ -160,7 +187,6 @@ def analyze(req: AnalyzeRequest, request: Request):
             raise HTTPException(400, "Paste a chat thread or time log (at least a few lines).")
         evidence_text, evidence = ai_agent.build_evidence_from_text(req.text)
 
-    rate_limit(request)
     log.info("Analyzing %d evidence entries for %s", len(evidence), req.client_name)
     result = ai_agent.analyze_work(
         config.GEMINI_API_KEY,
@@ -210,6 +236,8 @@ class CreateInvoiceRequest(BaseModel):
     line_items: list[InvoiceItem] = Field(min_length=1, max_length=25)
     evidence: dict[str, EvidenceRef] = {}
     milestones: list[Milestone] = Field([], max_length=12)
+    # A random ID per draft from the browser: a retry with the same ID never creates a second invoice.
+    request_id: str = Field("", max_length=64, pattern=r"^[A-Za-z0-9-]*$")
 
     @field_validator("currency")
     @classmethod
@@ -245,13 +273,35 @@ def build_note(req: CreateInvoiceRequest) -> str:
     return note[:3990]
 
 
+_sent_requests: dict[str, tuple[float, dict]] = {}
+
+
+def recipient_allowed(email: str) -> bool:
+    if not config.ALLOWED_RECIPIENT_DOMAINS:
+        return True
+    domain = email.rsplit("@", 1)[-1].lower()
+    return any(domain == d or domain.endswith("." + d) for d in config.ALLOWED_RECIPIENT_DOMAINS)
+
+
 @app.post("/api/invoices")
-def create_and_send_invoice(req: CreateInvoiceRequest):
+def create_and_send_invoice(req: CreateInvoiceRequest, request: Request):
+    now = time.time()
+    for key in [k for k, (t, _) in _sent_requests.items() if now - t > 3600]:
+        _sent_requests.pop(key, None)
+    if req.request_id and req.request_id in _sent_requests:
+        log.info("Duplicate send for request %s: returning the invoice already sent", req.request_id)
+        return _sent_requests[req.request_id][1]
+    if not recipient_allowed(req.client_email):
+        allowed = ", ".join(f"@…{d}" for d in config.ALLOWED_RECIPIENT_DOMAINS)
+        raise HTTPException(
+            400, f"This demo only sends invoices to PayPal sandbox test accounts ({allowed}). Use your sandbox buyer email."
+        )
+    rate_limit(request, "paypal")
     pp = paypal()
     total = sum(Decimal(str(i.hours)) * Decimal(str(req.hourly_rate)) for i in req.line_items)
     if total > Decimal(str(config.MAX_INVOICE_TOTAL)):
         raise HTTPException(
-            400, f"Total {req.currency} {money(total)} is above the safety limit of {config.MAX_INVOICE_TOTAL}."
+            400, f"Total {req.currency} {money(total, req.currency)} is above the safety limit of {config.MAX_INVOICE_TOTAL}."
         )
     items = [
         {"name": i.name, "description": i.description, "hours": i.hours, "rate": req.hourly_rate}
@@ -268,10 +318,19 @@ def create_and_send_invoice(req: CreateInvoiceRequest):
         seller_name=config.SELLER_NAME,
     )
     send_result = pp.send_invoice(invoice["id"])
-    sent = summarize_invoice(pp.get_invoice(invoice["id"]))
-    if not sent["payer_url"] and send_result.get("href"):
-        sent["payer_url"] = send_result["href"]
-    return {"invoice": sent, "total": money(total)}
+    # The invoice is now SENT. Reading it back is only for display: if that read fails,
+    # report success anyway, so the user never retries and bills the client twice.
+    try:
+        sent = summarize_invoice(pp.get_invoice(invoice["id"]))
+    except PayPalError as e:
+        log.warning("Invoice %s was sent but could not be read back: %s", invoice["id"], e.message)
+        sent = summarize_invoice({**invoice, "status": "SENT"})
+    if not sent["payer_url"]:
+        sent["payer_url"] = send_result.get("href") or payer_url_for(invoice["id"])
+    result = {"invoice": sent, "total": money(total, req.currency)}
+    if req.request_id:
+        _sent_requests[req.request_id] = (time.time(), result)
+    return result
 
 
 @app.get("/api/invoices")
@@ -289,6 +348,7 @@ def list_invoices():
 
 @app.get("/api/invoices/{invoice_id}")
 def get_invoice(invoice_id: str):
+    check_invoice_id(invoice_id)
     return summarize_invoice(paypal().get_invoice(invoice_id))
 
 
@@ -298,7 +358,9 @@ class ReminderRequest(BaseModel):
 
 
 @app.post("/api/invoices/{invoice_id}/remind")
-def send_reminder(invoice_id: str, req: ReminderRequest):
+def send_reminder(invoice_id: str, req: ReminderRequest, request: Request):
+    check_invoice_id(invoice_id)
+    rate_limit(request, "paypal")
     pp = paypal()
     inv = summarize_invoice(pp.get_invoice(invoice_id))
     if not inv["is_open"]:

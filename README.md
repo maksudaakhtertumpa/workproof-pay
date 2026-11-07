@@ -48,7 +48,7 @@ The client pays on PayPal's hosted invoice page, so no card data touches the app
 - **Structured extraction.** Gemini returns a typed JSON schema: summary, line items, hours, evidence IDs, milestone and flags. The server validates evidence IDs against the real commits, rounds hours and computes all money in Python with `Decimal`. **The AI never does the arithmetic.**
 - **Milestone matching.** Each line is tagged with an agreed milestone or marked as outside scope; unknown milestone IDs are treated as outside scope.
 - **Agent with function calling.** The billing agent has three tools: `find_invoices`, `invoice_details` (both read live PayPal data) and `propose_reminder`. It chains them on its own (find overdue → read the work note → draft a reminder).
-- **Human in the loop.** `propose_reminder` only creates a draft; nothing reaches a client until the freelancer clicks send. Invoices need an explicit confirmation and are capped by `MAX_INVOICE_TOTAL`, and AI endpoints are rate-limited per IP.
+- **Human in the loop.** `propose_reminder` only creates a draft (at most 4 tool rounds per question); nothing reaches a client until the freelancer clicks send. Invoices need an explicit confirmation and are capped by `MAX_INVOICE_TOTAL`; a per-draft request ID means a retry can never send a second invoice; the public demo only sends to sandbox test accounts; and AI and PayPal endpoints are rate-limited per IP.
 
 AI coding tools: this project was built with help from Claude (Anthropic) as a coding assistant.
 
@@ -120,7 +120,8 @@ The repo includes [`render.yaml`](render.yaml). On [Render](https://render.com):
 | Invoice shows **Scheduled** instead of Sent | Set `SELLER_TIMEZONE` to your seller account's time zone. |
 | Payment stays pending | Use a **US** sandbox seller and pay with the sandbox **Visa** card, not the bank account. |
 | `Gemini free-tier quota is used up` | Free limits are per model per day; add more models to `GEMINI_FALLBACK_MODELS` or try tomorrow. |
-| `GitHub rate limit reached` | Add `GITHUB_TOKEN` to `.env`. |
+| `GitHub rate limit reached` | Add `GITHUB_TOKEN` to `.env` (and to Render's environment for the live demo). |
+| `This demo only sends invoices to PayPal sandbox test accounts` | In Sandbox the demo only sends to `@…example.com` addresses. Set `ALLOWED_RECIPIENT_DOMAINS` (empty allows any address). |
 
 ## Built with
 

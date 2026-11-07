@@ -87,6 +87,10 @@ class GeminiTimeout(Exception):
     """Gemini did not answer in time."""
 
 
+class AIResponseError(Exception):
+    """Gemini answered, but not with something usable (empty, blocked, cut off), or could not be reached."""
+
+
 @lru_cache(maxsize=4)
 def _client(api_key: str) -> genai.Client:
     # Cached so the client stays alive: a Client that is garbage-collected closes its HTTP connection.
@@ -120,7 +124,9 @@ def _generate_with_retry(api_key: str) -> Callable[..., Any]:
                         last_error = GeminiTimeout()
                         break  # try the next model
                     if not isinstance(e, genai_errors.APIError):
-                        raise
+                        log.warning("Gemini (%s) call failed: %s: %s", model, type(e).__name__, e)
+                        last_error = AIResponseError("Couldn't reach the AI service. Please try again in a minute.")
+                        break
                     config = kwargs.get("config")
                     if e.code == 400 and config is not None and config.thinking_config is not None:
                         log.warning("%s rejected thinking_config, retrying without it", model)
@@ -136,7 +142,7 @@ def _generate_with_retry(api_key: str) -> Callable[..., Any]:
                         raise
                     if attempt == 0:
                         time.sleep(2)
-        if isinstance(last_error, GeminiTimeout):
+        if isinstance(last_error, (GeminiTimeout, AIResponseError)):
             raise last_error
         raise last_error or RuntimeError("No Gemini model available")
 
@@ -210,9 +216,13 @@ def analyze_work(
     if generate is None:
         generate = _generate_with_retry(api_key)
     response = generate(model=model, contents=prompt, config=config)
-    analysis: WorkAnalysis | None = response.parsed
-    if analysis is None:
-        analysis = WorkAnalysis.model_validate_json(response.text)
+    analysis = getattr(response, "parsed", None)
+    if not isinstance(analysis, WorkAnalysis):
+        try:
+            analysis = WorkAnalysis.model_validate_json(getattr(response, "text", None) or "")
+        except ValueError as e:  # empty, blocked or cut-off answer
+            log.warning("Gemini returned no usable invoice draft: %s", str(e)[:200])
+            raise AIResponseError("The AI couldn't draft this invoice (its answer was empty or incomplete). Please try again.") from e
 
     # Guardrail: keep only evidence IDs that really exist; flag items with none.
     items, flags = [], list(analysis.flags)
@@ -338,6 +348,8 @@ def run_agent(
             return "Error: no invoice with that ID. Call find_invoices first."
         if not match["is_open"]:
             return f"Error: invoice {match['number']} is {match['status']}, so no reminder is needed."
+        # If a fallback model re-runs the tools, replace the earlier draft instead of duplicating it.
+        proposals[:] = [p for p in proposals if p["invoice_id"] != invoice_id]
         proposals.append(
             {
                 "invoice_id": invoice_id,
@@ -358,12 +370,12 @@ def run_agent(
     config = types.GenerateContentConfig(
         system_instruction=AGENT_INSTRUCTIONS.format(today=date.today().isoformat()),
         tools=[find_invoices, invoice_details, propose_reminder],
-        automatic_function_calling=types.AutomaticFunctionCallingConfig(maximum_remote_calls=8),
+        automatic_function_calling=types.AutomaticFunctionCallingConfig(maximum_remote_calls=4),
         temperature=0.3,
         thinking_config=FAST_THINKING,
     )
     if generate is None:
         generate = _generate_with_retry(api_key)
     response = generate(model=model, contents=contents, config=config)
-    reply = (response.text or "").strip() or "Done."
+    reply = (getattr(response, "text", None) or "").strip() or "Done."
     return {"reply": reply, "proposals": proposals, "tools_used": tool_log}

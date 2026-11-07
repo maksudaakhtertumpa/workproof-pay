@@ -34,7 +34,7 @@
       </ol>
 
       <!-- Step 1 -->
-      <form id="analyzeForm" class="step-panel" data-panel="1">
+      <form id="analyzeForm" class="step-panel" data-panel="1" method="post" action="javascript:void(0)">
         <h1 id="sheetTitle">Bill your client from the work you actually did</h1>
         <p class="lede">Point the AI at your commits, or paste a chat or time log. It drafts an itemized invoice and links every line to its evidence.</p>
 
@@ -43,7 +43,7 @@
           <div class="grid-2">
             <label>Client name<input name="client_name" required maxlength="200"></label>
             <label>Client's PayPal email<input name="client_email" type="email" required placeholder="client@example.com"></label>
-            <label>Hourly rate<input name="hourly_rate" type="number" min="1" step="0.5" required inputmode="decimal"></label>
+            <label>Hourly rate<input name="hourly_rate" type="number" min="1" step="0.01" required inputmode="decimal"></label>
             <label>Currency<select name="currency"></select></label>
           </div>
         </fieldset>
@@ -170,6 +170,6 @@
   </main>
 
   <div class="toast hidden" id="toast" role="alert"></div>
-  <script src="/static/app.js?v=5"></script>
+  <script src="/static/app.js?v=6"></script>
 </body>
 </html>

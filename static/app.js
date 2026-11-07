@@ -19,9 +19,15 @@ function esc(s) {
   return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
+const ZERO_DECIMAL = new Set(["JPY", "HUF", "TWD"]);
 function money(value, currency) {
   const n = Number(value || 0);
-  return `${currency} ${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const d = ZERO_DECIMAL.has(currency) ? 0 : 2;
+  return `${currency} ${n.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d })}`;
+}
+
+function newRequestId() {
+  return (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`);
 }
 
 let toastTimer;
@@ -132,6 +138,7 @@ async function onAnalyze(e) {
       const result = await api("/api/analyze", { method: "POST", body });
       hideToast();
       state.analysis = result;
+      state.requestId = newRequestId();  // one ID per draft: a retry can never send a second invoice
       renderReview(result);
       showStep(2);
     } catch (err) {
@@ -163,7 +170,7 @@ function itemColumns(withMilestones = false) {
         valueParser: p => Math.max(0.25, Math.round(Number(p.newValue) * 4) / 4 || p.oldValue) },
       { headerName: "Amount", width: 86, type: "numericColumn",
         valueGetter: p => p.data.hours * (state.form?.hourly_rate || 0),
-        valueFormatter: p => Number(p.value).toFixed(2), cellStyle: { fontWeight: 600 } },
+        valueFormatter: p => Number(p.value).toFixed(ZERO_DECIMAL.has(state.form?.currency) ? 0 : 2), cellStyle: { fontWeight: 600 } },
       { field: "evidence", headerName: "Proof", flex: 1.2, minWidth: 84, cellRenderer: evidenceRenderer, sortable: false, autoHeight: true, cellClass: "proof-cell" },
       { headerName: "", width: 46, sortable: false, cellStyle: { paddingLeft: "6px", paddingRight: "6px", textOverflow: "clip" }, cellRenderer: () => `<button class="del-row" title="Remove line">✕</button>`,
         onCellClicked: p => { p.api.applyTransaction({ remove: [p.data] }); updateTotal(); } },
@@ -285,6 +292,7 @@ async function onSend() {
     line_items: items.map(i => ({ name: i.name, description: i.description || "", hours: Number(i.hours), evidence: i.evidence || [], milestone: i.milestone || "" })),
     evidence: state.analysis?.evidence || {},
     milestones: state.analysis?.milestones || [],
+    request_id: state.requestId || "",
   };
   await withLoading($("#sendBtn"), async () => {
     try {
@@ -429,7 +437,7 @@ async function askAgent(text) {
   addMsg("user", text);
   const thinking = addMsg("bot", "Checking your PayPal invoices", "thinking");
   try {
-    const res = await api("/api/agent", { method: "POST", body: { messages: state.chat } });
+    const res = await api("/api/agent", { method: "POST", body: { messages: state.chat.slice(-12) } });
     thinking.remove();
     const msg = addMsg("bot", res.reply);
     if (res.tools_used?.length) {

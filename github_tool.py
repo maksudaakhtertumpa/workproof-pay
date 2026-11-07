@@ -18,12 +18,13 @@ class GitHubError(Exception):
 
 
 def parse_repo(text: str) -> tuple[str, str]:
-    """Accept 'owner/repo' or a github.com URL; return (owner, repo)."""
-    text = text.strip().removesuffix(".git").rstrip("/")
-    match = re.search(r"(?:github\.com[/:])?([\w.-]+)/([\w.-]+)$", text)
-    if not match:
+    """Accept 'owner/repo' or any github.com URL inside a repo (branch, commits, PR pages); return (owner, repo)."""
+    text = text.strip().split("?")[0].split("#")[0]
+    text = re.sub(r"^(?:https?://|git@)?(?:www\.)?github\.com[/:]", "", text)
+    parts = [p for p in text.split("/") if p]
+    if len(parts) < 2 or not all(re.fullmatch(r"[\w.-]+", p) for p in parts[:2]):
         raise GitHubError("Use the form owner/repo or https://github.com/owner/repo")
-    return match.group(1), match.group(2)
+    return parts[0], parts[1].removesuffix(".git")
 
 
 def _iso(d: date, end_of_day: bool = False) -> str:
@@ -49,14 +50,20 @@ def fetch_commits(
         params["author"] = author
 
     with httpx.Client(base_url=API, headers=headers, timeout=20, transport=transport) as http:
-        resp = http.get(f"/repos/{owner}/{name}/commits", params=params)
+        try:
+            resp = http.get(f"/repos/{owner}/{name}/commits", params=params)
+        except httpx.HTTPError as e:
+            raise GitHubError("Couldn't reach GitHub. Check your connection and try again.") from e
         if resp.status_code == 404:
             raise GitHubError(f"Repo {owner}/{name} not found (private repos need a GITHUB_TOKEN).")
-        if resp.status_code == 403:
-            raise GitHubError("GitHub rate limit reached. Add a GITHUB_TOKEN to .env or wait an hour.")
+        if resp.status_code == 401:
+            raise GitHubError("GitHub rejected the GITHUB_TOKEN. Check or replace it.")
+        if resp.status_code in (403, 429):
+            raise GitHubError("GitHub rate limit reached. Add a GITHUB_TOKEN or wait an hour.")
         if resp.status_code == 409:
             raise GitHubError("That repo is empty.")
-        resp.raise_for_status()
+        if resp.status_code >= 400:
+            raise GitHubError(f"GitHub returned an error ({resp.status_code}). Please try again in a minute.")
 
         commits = []
         for c in resp.json():
@@ -78,7 +85,10 @@ def fetch_commits(
         # Line counts help the AI estimate effort. Each one costs an API call, so only with a token.
         if token:
             for c in commits[:MAX_COMMITS_WITH_STATS]:
-                detail = http.get(f"/repos/{owner}/{name}/commits/{c['sha']}")
+                try:
+                    detail = http.get(f"/repos/{owner}/{name}/commits/{c['sha']}")
+                except httpx.HTTPError:
+                    break  # line stats are optional
                 if detail.status_code == 200:
                     body = detail.json()
                     c["additions"] = body.get("stats", {}).get("additions")

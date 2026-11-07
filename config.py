@@ -41,4 +41,12 @@ DEFAULT_HOURLY_RATE = _float("DEFAULT_HOURLY_RATE", 40)
 MAX_INVOICE_TOTAL = _float("MAX_INVOICE_TOTAL", 5000)
 AI_REQUESTS_PER_HOUR = int(_float("AI_REQUESTS_PER_HOUR", 60))
 
+# Who the public demo may send invoices to. In Sandbox the default only allows PayPal sandbox
+# test accounts, so strangers can't use the live demo to send invoices to real people.
+_default_domains = "example.com" if PAYPAL_ENVIRONMENT == "SANDBOX" else ""
+ALLOWED_RECIPIENT_DOMAINS = [
+    d.strip().lower().lstrip("@") for d in os.getenv("ALLOWED_RECIPIENT_DOMAINS", _default_domains).split(",") if d.strip()
+]
+PAYPAL_REQUESTS_PER_HOUR = int(_float("PAYPAL_REQUESTS_PER_HOUR", 30))
+
 SUPPORTED_CURRENCIES = {"USD", "EUR", "GBP", "AUD", "CAD", "SGD", "MYR", "JPY"}

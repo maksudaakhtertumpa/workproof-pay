@@ -43,8 +43,13 @@ class PayPalError(Exception):
         self.debug_id = debug_id
 
 
-def money(value: Decimal | float | str) -> str:
-    return str(Decimal(str(value)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+# PayPal rejects decimal amounts for these currencies.
+ZERO_DECIMAL_CURRENCIES = {"JPY", "HUF", "TWD"}
+
+
+def money(value: Decimal | float | str, currency: str = "") -> str:
+    step = Decimal("1") if currency.upper() in ZERO_DECIMAL_CURRENCIES else Decimal("0.01")
+    return str(Decimal(str(value)).quantize(step, rounding=ROUND_HALF_UP))
 
 
 class PayPalClient:
@@ -87,9 +92,15 @@ class PayPalClient:
 
     def _request(self, method: str, path: str, **kwargs: Any) -> httpx.Response:
         headers = kwargs.pop("headers", {})
-        headers["Authorization"] = f"Bearer {self._access_token()}"
         headers.setdefault("Content-Type", "application/json")
-        resp = self.http.request(method, path, headers=headers, **kwargs)
+        for attempt in range(2):
+            headers["Authorization"] = f"Bearer {self._access_token()}"
+            resp = self.http.request(method, path, headers=headers, **kwargs)
+            if resp.status_code == 401 and attempt == 0:
+                # PayPal rejected the cached token early (e.g. app permissions changed): get a fresh one once.
+                self._token = None
+                continue
+            break
         if resp.status_code >= 400:
             raise self._error_from(resp)
         return resp
@@ -161,7 +172,7 @@ class PayPalClient:
                     "name": item["name"][:200],
                     "description": (item.get("description") or "")[:1000],
                     "quantity": str(item["hours"]),
-                    "unit_amount": {"currency_code": currency, "value": money(item["rate"])},
+                    "unit_amount": {"currency_code": currency, "value": money(item["rate"], currency)},
                     "unit_of_measure": "HOURS",
                 }
                 for item in items
