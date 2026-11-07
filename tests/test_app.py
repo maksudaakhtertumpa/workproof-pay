@@ -218,3 +218,37 @@ def test_webhook_rejects_bad_signature(api, fake_paypal, monkeypatch):
     main.WEBHOOK_EVENTS.clear(); main._seen_event_ids.clear()
     r = api.post("/api/paypal/webhook", json=PAID_EVENT, headers={**WEBHOOK_HEADERS, "paypal-transmission-sig": "forged"})
     assert r.status_code == 400 and not main.WEBHOOK_EVENTS
+
+
+def test_milestones_tagging_and_scope(api, fake_paypal, monkeypatch):
+    def fake_generate(model, contents, config):
+        assert "AGREED MILESTONES" in contents and "[M1] Phase 1" in contents
+        return SimpleNamespace(parsed=ai_agent.WorkAnalysis(summary="Work.", flags=[], line_items=[
+            ai_agent.LineItem(name="Landing page", description="", hours=6, evidence=["L1"], milestone="M1"),
+            ai_agent.LineItem(name="Booking form", description="", hours=5, evidence=["L2"], milestone="m2"),
+            ai_agent.LineItem(name="SEO extras", description="", hours=2, evidence=["L3"], milestone="OUT"),
+            ai_agent.LineItem(name="Odd tag", description="", hours=1, evidence=["L3"], milestone="M9"),
+        ]), text="")
+
+    real = ai_agent.analyze_work
+    monkeypatch.setattr(main.ai_agent, "analyze_work", lambda *a, **k: real(*a, **k, generate=fake_generate))
+    r = api.post("/api/analyze", json={
+        "source": "text", "text": "built landing page\nbuilt booking form\nadded SEO robots.txt",
+        "hourly_rate": 40, "currency": "USD", "client_name": "Kopi Labs",
+        "milestones": "Phase 1: Landing page - USD 400\nPhase 2: Booking - $350",
+    })
+    assert r.status_code == 200, r.text
+    d = r.json()
+    assert [i["milestone"] for i in d["line_items"]] == ["M1", "M2", "OUT", "OUT"]   # unknown id -> OUT
+    assert d["scope"]["milestones"][0]["value"] == 240 and d["scope"]["milestones"][0]["budget"] == 400
+    assert d["scope"]["out_of_scope"]["hours"] == 3
+
+    inv = api.post("/api/invoices", json={
+        "client_name": "Kopi Labs", "client_email": "a@b.co", "currency": "USD", "hourly_rate": 40,
+        "line_items": [{"name": "Landing page", "hours": 6, "evidence": ["L1"], "milestone": "M1"},
+                       {"name": "SEO extras", "hours": 2, "evidence": ["L3"], "milestone": "OUT"}],
+        "evidence": {"L1": {"label": "built landing page", "url": ""}, "L3": {"label": "added SEO", "url": ""}},
+        "milestones": d["milestones"],
+    }).json()["invoice"]
+    note = fake_paypal.invoices[inv["id"]]["detail"]["note"]
+    assert "[Phase 1: Landing page] Landing page" in note and "[Additional work, outside agreed milestones] SEO extras" in note

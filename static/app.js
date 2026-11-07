@@ -25,6 +25,7 @@ function money(value, currency) {
 }
 
 let toastTimer;
+function hideToast() { clearTimeout(toastTimer); $("#toast").classList.add("hidden"); }
 function toast(text, kind = "") {
   const el = $("#toast");
   el.textContent = text;
@@ -116,6 +117,7 @@ async function onAnalyze(e) {
     hourly_rate: Number(f.hourly_rate.value),
     currency: f.currency.value,
     context: f.context.value.trim(),
+    milestones: f.milestones.value.trim(),
   };
   if (state.source === "github") {
     Object.assign(body, { repo: f.repo.value.trim(), since: f.since.value || null, until: f.until.value || null, author: f.author.value.trim() });
@@ -128,6 +130,7 @@ async function onAnalyze(e) {
     toast("Reading your work. This can take up to a minute.");
     try {
       const result = await api("/api/analyze", { method: "POST", body });
+      hideToast();
       state.analysis = result;
       renderReview(result);
       showStep(2);
@@ -151,21 +154,35 @@ function evidenceRenderer(params) {
   }).join("") + "</span>";
 }
 
-function createItemsGrid() {
-  state.itemsGrid = agGrid.createGrid($("#itemsGrid"), {
-    columnDefs: [
-      { field: "name", headerName: "Item", editable: true, flex: 2, minWidth: 118, wrapText: true, autoHeight: true },
-      { field: "description", headerName: "Description", editable: true, flex: 3, minWidth: 150, wrapText: true, autoHeight: true,
+function itemColumns(withMilestones = false) {
+  const cols = [
+      { field: "name", headerName: "Item", editable: true, flex: 2, minWidth: 100, wrapText: true, autoHeight: true },
+      { field: "description", headerName: "Description", editable: true, flex: 3, minWidth: 128, wrapText: true, autoHeight: true,
         cellEditor: "agLargeTextCellEditor", cellEditorPopup: true },
-      { field: "hours", headerName: "Hours", editable: true, width: 78, type: "numericColumn",
+      { field: "hours", headerName: "Hrs", editable: true, width: 68, type: "numericColumn",
         valueParser: p => Math.max(0.25, Math.round(Number(p.newValue) * 4) / 4 || p.oldValue) },
-      { headerName: "Amount", width: 98, type: "numericColumn",
+      { headerName: "Amount", width: 86, type: "numericColumn",
         valueGetter: p => p.data.hours * (state.form?.hourly_rate || 0),
         valueFormatter: p => Number(p.value).toFixed(2), cellStyle: { fontWeight: 600 } },
       { field: "evidence", headerName: "Proof", flex: 1.2, minWidth: 84, cellRenderer: evidenceRenderer, sortable: false, autoHeight: true, cellClass: "proof-cell" },
       { headerName: "", width: 46, sortable: false, cellStyle: { paddingLeft: "6px", paddingRight: "6px", textOverflow: "clip" }, cellRenderer: () => `<button class="del-row" title="Remove line">✕</button>`,
         onCellClicked: p => { p.api.applyTransaction({ remove: [p.data] }); updateTotal(); } },
-    ],
+  ];
+  if (withMilestones) {
+    const ms = state.analysis?.milestones || [];
+    const refData = Object.fromEntries([...ms.map(m => [m.id, m.name]), ["OUT", "Outside scope"]]);
+    cols.splice(1, 0, {
+      field: "milestone", headerName: "Milestone", width: 104, editable: true, autoHeight: true,
+      cellRenderer: milestoneRenderer, cellClass: "proof-cell",
+      cellEditor: "agSelectCellEditor", cellEditorParams: { values: Object.keys(refData) }, refData,
+    });
+  }
+  return cols;
+}
+
+function createItemsGrid() {
+  state.itemsGrid = agGrid.createGrid($("#itemsGrid"), {
+    columnDefs: itemColumns(false),
     rowData: [],
     domLayout: "autoHeight",
     singleClickEdit: true,
@@ -187,6 +204,7 @@ function updateTotal() {
   const total = currentItems().reduce((sum, r) => sum + Number(r.hours || 0) * rate, 0);
   $("#totalAmount").textContent = money(total, state.form?.currency || "USD");
   state.itemsGrid?.refreshCells({ force: true });
+  if (state.analysis) renderScope();
   validateSend();
 }
 
@@ -206,10 +224,52 @@ function renderReview(result) {
   } else {
     flags.classList.add("hidden");
   }
+  renderScope(result);
+  state.itemsGrid.setGridOption("columnDefs", itemColumns(result.milestones?.length > 0));
   state.itemsGrid.setGridOption("rowData", result.line_items.map(i => ({ ...i })));
   $("#confirmEmail").textContent = state.form.client_email || "(no email)";
   $("#confirmBox").checked = false;
   updateTotal();
+}
+
+function milestoneName(id) {
+  const m = (state.analysis?.milestones || []).find(x => x.id === id);
+  return m ? m.name : "";
+}
+
+function milestoneRenderer(p) {
+  const id = p.value || "";
+  if (id === "OUT") return `<span class="ms ms-out" title="Not part of any agreed milestone">Extra</span>`;
+  if (!id) return `<span class="ms ms-none">–</span>`;
+  const full = milestoneName(id) || id;
+  const short = full.includes(":") ? full.split(":")[0] : full.split(/\s+/).slice(0, 3).join(" ");
+  return `<span class="ms" title="${esc(full)}">${esc(short)}</span>`;
+}
+
+// Scope summary: recomputed from the current table, so edits update it live
+function renderScope(result = state.analysis) {
+  const box = $("#scope");
+  const milestones = result?.milestones || [];
+  if (!milestones.length) { box.classList.add("hidden"); box.innerHTML = ""; return; }
+  const rate = state.form?.hourly_rate || 0, cur = state.form?.currency || "USD";
+  const items = state.itemsGrid ? currentItems() : result.line_items;
+  const hoursFor = (id) => items.filter(i => i.milestone === id).reduce((s, i) => s + Number(i.hours || 0), 0);
+  const rows = milestones.map(m => {
+    const value = hoursFor(m.id) * rate;
+    const pct = m.budget ? Math.min(100, Math.round(value / m.budget * 100)) : null;
+    const over = m.budget && value > m.budget;
+    return `<div class="scope-row">
+      <div class="scope-name">${esc(m.name)}</div>
+      <div class="scope-bar" aria-hidden="true"><span style="width:${pct ?? (value ? 100 : 0)}%" class="${over ? "over" : ""}"></span></div>
+      <div class="scope-num">${money(value, cur)}${m.budget ? ` <span>of ${money(m.budget, cur)}</span>` : ""}</div>
+    </div>`;
+  }).join("");
+  const outHours = hoursFor("OUT");
+  const out = outHours
+    ? `<p class="scope-out"><b>${outHours} h (${money(outHours * rate, cur)})</b> of this work is outside the agreed milestones. Keep it as additional work, or remove it before sending.</p>`
+    : `<p class="scope-ok">All billed work matches the agreed milestones.</p>`;
+  box.innerHTML = `<h2 class="scope-title">Work against the agreement</h2>${rows}${out}`;
+  box.classList.remove("hidden");
 }
 
 async function onSend() {
@@ -222,8 +282,9 @@ async function onSend() {
     hourly_rate: state.form.hourly_rate,
     due_in_days: Number($("#dueDays").value),
     summary: $("#summary").value,
-    line_items: items.map(i => ({ name: i.name, description: i.description || "", hours: Number(i.hours), evidence: i.evidence || [] })),
+    line_items: items.map(i => ({ name: i.name, description: i.description || "", hours: Number(i.hours), evidence: i.evidence || [], milestone: i.milestone || "" })),
     evidence: state.analysis?.evidence || {},
+    milestones: state.analysis?.milestones || [],
   };
   await withLoading($("#sendBtn"), async () => {
     try {

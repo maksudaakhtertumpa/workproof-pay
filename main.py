@@ -135,6 +135,7 @@ class AnalyzeRequest(BaseModel):
     currency: str = "USD"
     client_name: str = Field(min_length=1, max_length=200)
     context: str = Field("", max_length=1000)
+    milestones: str = Field("", max_length=3000)
 
 
 @app.post("/api/analyze")
@@ -170,6 +171,7 @@ def analyze(req: AnalyzeRequest, request: Request):
         req.currency,
         req.client_name,
         req.context,
+        milestones=ai_agent.parse_milestones(req.milestones),
     )
     if not result["line_items"]:
         raise HTTPException(422, "The AI couldn't find billable work in that evidence. Try a wider date range.")
@@ -184,6 +186,13 @@ class InvoiceItem(BaseModel):
     description: str = Field("", max_length=1000)
     hours: float = Field(gt=0, le=200)
     evidence: list[str] = []
+    milestone: str = Field("", max_length=8)
+
+
+class Milestone(BaseModel):
+    id: str = Field(max_length=8)
+    name: str = Field(max_length=200)
+    budget: float | None = None
 
 
 class EvidenceRef(BaseModel):
@@ -200,6 +209,7 @@ class CreateInvoiceRequest(BaseModel):
     summary: str = Field("", max_length=2000)
     line_items: list[InvoiceItem] = Field(min_length=1, max_length=25)
     evidence: dict[str, EvidenceRef] = {}
+    milestones: list[Milestone] = Field([], max_length=12)
 
     @field_validator("currency")
     @classmethod
@@ -213,6 +223,7 @@ class CreateInvoiceRequest(BaseModel):
 def build_note(req: CreateInvoiceRequest) -> str:
     """Invoice note = AI work summary + links to the proof of work."""
     lines = [req.summary.strip(), "", "Proof of work:"]
+    names = {m.id: m.name for m in req.milestones}
     for item in req.line_items:
         refs = []
         for ev in item.evidence[:6]:
@@ -221,8 +232,13 @@ def build_note(req: CreateInvoiceRequest) -> str:
                 refs.append(ref.url)
             elif ref:
                 refs.append(f"“{ref.label[:80]}”")
+        tag = ""
+        if item.milestone in names:
+            tag = f"[{names[item.milestone]}] "
+        elif item.milestone == "OUT":
+            tag = "[Additional work, outside agreed milestones] "
         if refs:
-            lines.append(f"• {item.name}: " + ", ".join(refs))
+            lines.append(f"• {tag}{item.name}: " + ", ".join(refs))
     lines.append("")
     lines.append("Generated with WorkProof Pay.")
     note = "\n".join(lines).strip()

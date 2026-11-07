@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import time
 from datetime import date
 from decimal import Decimal
@@ -33,6 +34,7 @@ class LineItem(BaseModel):
     description: str = Field(description="One or two sentences on what was delivered, in plain English.")
     hours: float = Field(description="Estimated billable hours for this item, in steps of 0.25.")
     evidence: list[str] = Field(description="IDs of the evidence entries this item is based on, e.g. ['a1b2c3d'] or ['L4', 'L5'].")
+    milestone: str = Field(default="", description="ID of the agreed milestone this item belongs to (e.g. 'M1'), 'OUT' if it is outside every milestone, or '' when no milestones were given.")
 
 
 class WorkAnalysis(BaseModel):
@@ -51,7 +53,30 @@ Turn them into an itemized invoice:
 - Never invent work that is not in the evidence. Skip trivial entries (typo fixes, merges) or fold them into a related item.
 - Write for the client: no internal jargon, no commit hashes in names or descriptions.
 - Add a flag for anything uncertain (e.g. very large estimates, unclear entries, work that may be out of scope).
+- If AGREED MILESTONES are given, set each line item's milestone to the ID of the milestone it delivers (e.g. "M1").
+  Use "OUT" for work that is not part of any milestone (scope creep); keep such work as its own line item,
+  never merge it into a milestone item. If no milestones are given, leave milestone empty.
 """
+
+
+def parse_milestones(text: str) -> list[dict[str, Any]]:
+    """One milestone per line, e.g. 'Phase 1: Landing page and menu - USD 400'. The amount is optional."""
+    milestones = []
+    for raw in text.splitlines():
+        line = raw.strip().lstrip("-*•").strip()
+        if not line:
+            continue
+        amount = None
+        m = re.search(r"(?:[A-Z]{3}|RM|\$)?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)\s*(?:[A-Z]{3})?\s*$", line)
+        name = line
+        if m and re.search(r"(USD|EUR|GBP|SGD|MYR|AUD|CAD|JPY|RM|\$)", line[m.start():] + line[max(0, m.start() - 4):m.start()]):
+            amount = float(m.group(1).replace(",", ""))
+            name = line[: m.start()].rstrip(" -–—:,").strip()
+            name = re.sub(r"(USD|EUR|GBP|SGD|MYR|AUD|CAD|JPY|RM|\$)\s*$", "", name).rstrip(" -–—:,").strip()
+        milestones.append({"id": f"M{len(milestones) + 1}", "name": name[:160] or f"Milestone {len(milestones) + 1}", "budget": amount})
+        if len(milestones) >= 12:
+            break
+    return milestones
 
 
 REQUEST_TIMEOUT_MS = 60_000  # give up on a single Gemini call after 60 seconds
@@ -162,12 +187,18 @@ def analyze_work(
     client_name: str,
     extra_context: str = "",
     generate: Callable[..., Any] | None = None,
+    milestones: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Ask Gemini for line items, then validate them against the real evidence."""
+    milestones = milestones or []
+    milestone_text = "\n".join(
+        f"[{m['id']}] {m['name']}" + (f" (agreed {currency} {m['budget']:.2f})" if m["budget"] else "") for m in milestones
+    )
     prompt = (
         f"Client: {client_name}\nHourly rate: {hourly_rate} {currency}\n"
         f"Extra context from the freelancer: {extra_context or 'none'}\n\n"
-        f"EVIDENCE ({len(evidence_index)} entries):\n{evidence_text}"
+        + (f"AGREED MILESTONES:\n{milestone_text}\n\n" if milestones else "")
+        + f"EVIDENCE ({len(evidence_index)} entries):\n{evidence_text}"
     )
     config = types.GenerateContentConfig(
         system_instruction=ANALYSIS_INSTRUCTIONS,
@@ -190,12 +221,18 @@ def analyze_work(
         if not valid:
             flags.append(f"“{item.name}” had no matching evidence, so it was removed.")
             continue
+        ms = (item.milestone or "").strip().upper()
+        if milestones:
+            ms = ms if ms in {m["id"] for m in milestones} or ms == "OUT" else "OUT"
+        else:
+            ms = ""
         items.append(
             {
                 "name": item.name.strip()[:200],
                 "description": item.description.strip()[:900],
                 "hours": _round_hours(item.hours),
                 "evidence": valid,
+                "milestone": ms,
             }
         )
     used = {e for i in items for e in i["evidence"]}
@@ -205,8 +242,26 @@ def analyze_work(
         "line_items": items,
         "flags": flags,
         "evidence": evidence_index,
+        "milestones": milestones,
+        "scope": scope_report(items, milestones, hourly_rate),
         "stats": {"evidence_count": len(evidence_index), "evidence_used": len(used), "evidence_unused": unused},
     }
+
+
+def scope_report(items: list[dict[str, Any]], milestones: list[dict[str, Any]], hourly_rate: float) -> dict[str, Any]:
+    """Per-milestone hours and value at the hourly rate, plus work outside the agreed scope. Plain arithmetic."""
+    if not milestones:
+        return {}
+    rows = []
+    for m in milestones:
+        mine = [i for i in items if i["milestone"] == m["id"]]
+        hours = sum(i["hours"] for i in mine)
+        rows.append({**m, "items": len(mine), "hours": hours, "value": round(hours * hourly_rate, 2),
+                     "evidence": sum(len(i["evidence"]) for i in mine)})
+    out = [i for i in items if i["milestone"] == "OUT"]
+    out_hours = sum(i["hours"] for i in out)
+    return {"milestones": rows, "out_of_scope": {"items": len(out), "hours": out_hours,
+                                                 "value": round(out_hours * hourly_rate, 2)}}
 
 
 # ---------------------------------------------------------------- agent
