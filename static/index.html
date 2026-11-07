@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WorkProof Pay</title>
+  <meta name="description" content="An AI agent that turns a freelancer's proof of work into PayPal invoices, then follows up until they're paid.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=Schibsted+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css?v=2">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2314213F'/><path d='M9 6h14v20l-3-2-2 2-2-2-2 2-2-2-3 2z' fill='white'/><path d='M12.5 15.5l2.5 2.5 4.5-5' stroke='%230B8A6B' stroke-width='2.4' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+  <script src="https://cdn.jsdelivr.net/npm/ag-grid-community@32.3.3/dist/ag-grid-community.min.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="WorkProof Pay home">
+      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M8 4h16v24l-3.2-2.2L18.6 28l-2.6-2.2L13.4 28l-2.2-2.2L8 28z" fill="#fff"/><path d="M12 15.5l3 3 5.5-6" stroke="#0B8A6B" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span class="brand-name">WorkProof Pay</span>
+    </a>
+    <p class="tagline">Bill from the work you can prove. Get paid through PayPal.</p>
+    <div class="status" id="statusBar" aria-live="polite">
+      <span class="env" id="envPill">Sandbox</span>
+    </div>
+  </header>
+
+  <main class="desk">
+    <!-- ============ LEFT: the invoice sheet ============ -->
+    <section class="sheet" id="createCard" aria-labelledby="sheetTitle">
+      <ol class="steps" aria-label="Progress">
+        <li class="step active" data-step="1"><span class="step-n">1</span>Proof of work</li>
+        <li class="step" data-step="2"><span class="step-n">2</span>Review</li>
+        <li class="step" data-step="3"><span class="step-n">3</span>Sent</li>
+      </ol>
+
+      <!-- Step 1 -->
+      <form id="analyzeForm" class="step-panel" data-panel="1">
+        <h1 id="sheetTitle">Bill your client from the work you actually did</h1>
+        <p class="lede">Point the AI at your commits, or paste a chat or time log. It drafts an itemized invoice and links every line to its evidence.</p>
+
+        <fieldset class="block">
+          <legend>Who are you billing?</legend>
+          <div class="grid-2">
+            <label>Client name<input name="client_name" required maxlength="200"></label>
+            <label>Client's PayPal email<input name="client_email" type="email" required placeholder="client@example.com"></label>
+            <label>Hourly rate<input name="hourly_rate" type="number" min="1" step="0.5" required inputmode="decimal"></label>
+            <label>Currency<select name="currency"></select></label>
+          </div>
+        </fieldset>
+
+        <fieldset class="block">
+          <legend>Where is the proof?</legend>
+          <div class="tabs" role="tablist">
+            <button type="button" class="tab active" data-source="github" role="tab" aria-selected="true">GitHub commits</button>
+            <button type="button" class="tab" data-source="text" role="tab" aria-selected="false">Chat or time log</button>
+          </div>
+
+          <div class="source" data-source-panel="github">
+            <label>Repository<input name="repo" placeholder="owner/repo or https://github.com/owner/repo"></label>
+            <div class="grid-3">
+              <label>From<input name="since" type="date"></label>
+              <label>To<input name="until" type="date"></label>
+              <label><span class="label-row">Author <span class="opt">optional</span></span><input name="author" placeholder="GitHub username"></label>
+            </div>
+          </div>
+          <div class="source hidden" data-source-panel="text">
+            <label>Paste a chat thread, emails or a time log
+              <textarea name="text" rows="8" placeholder="Mon 3 Nov: call with client about the new checkout flow (1h)&#10;Tue: built checkout page with PayPal buttons&#10;Wed: fixed the mobile layout bug they reported on WhatsApp"></textarea>
+            </label>
+          </div>
+
+          <label><span class="label-row">Notes for the AI <span class="opt">optional</span></span>
+            <input name="context" maxlength="1000" placeholder="e.g. Meetings are not billable. This is phase 2 of the website project.">
+          </label>
+        </fieldset>
+
+        <button class="btn btn-ink btn-lg" type="submit" id="analyzeBtn">Draft invoice from my work</button>
+      </form>
+
+      <!-- Step 2 -->
+      <div class="step-panel hidden" data-panel="2">
+        <div class="sheet-head">
+          <div>
+            <h1>Draft invoice</h1>
+            <p class="lede" id="evidenceStats"></p>
+          </div>
+          <button class="btn btn-quiet" id="backBtn" type="button">Back to proof</button>
+        </div>
+        <div id="flags" class="flags hidden" role="note"></div>
+
+        <label class="summary-label">Summary the client will read
+          <textarea id="summary" rows="3" maxlength="2000"></textarea>
+        </label>
+
+        <div class="items-head">
+          <span class="items-title">Line items <span class="opt">Click a cell to edit.</span></span>
+          <button class="btn btn-quiet btn-sm" id="addRowBtn" type="button">Add a line</button>
+        </div>
+        <div id="itemsGrid" class="ag-theme-quartz grid-items"></div>
+
+        <div class="totals">
+          <label class="due">Due in<select id="dueDays"><option value="7">7 days</option><option value="14" selected>14 days</option><option value="30">30 days</option></select></label>
+          <div class="total"><span>Total</span><strong id="totalAmount">—</strong></div>
+        </div>
+
+        <div class="confirm">
+          <label class="check"><input type="checkbox" id="confirmBox"> <span>I've checked the line items. Send this invoice to <b id="confirmEmail"></b>.</span></label>
+          <button class="btn btn-pay btn-lg" id="sendBtn" type="button" disabled>Send invoice with PayPal</button>
+        </div>
+      </div>
+
+      <!-- Step 3 -->
+      <div class="step-panel hidden" data-panel="3">
+        <div class="sent">
+          <div class="stamp" aria-hidden="true"><span>Sent</span><small>via PayPal</small></div>
+          <h1>Invoice <span id="sentNumber"></span> is on its way</h1>
+          <p class="lede">PayPal emailed it to <b id="sentEmail"></b>. When it's late, ask the billing agent to follow up.</p>
+          <div class="sent-actions">
+            <a class="btn btn-pay" id="payerLink" target="_blank" rel="noopener">Open the client's payment page</a>
+            <button class="btn btn-quiet" id="newInvoiceBtn" type="button">Start a new invoice</button>
+          </div>
+          <p class="hint">Demo tip: open the payment page in a private window, log in as the sandbox buyer and pay with the Visa card.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ RIGHT: ledger + agent ============ -->
+    <div class="side">
+      <section class="panel ledger" aria-labelledby="ledgerTitle">
+        <div class="panel-head">
+          <h2 id="ledgerTitle">Invoices</h2>
+          <button class="btn btn-quiet btn-sm" id="refreshBtn" type="button">Refresh</button>
+        </div>
+        <div class="stats" id="stats">
+          <div class="stat open"><span class="stat-num" data-stat="open">–</span><span class="stat-label">open</span></div>
+          <div class="stat warn"><span class="stat-num" data-stat="overdue">–</span><span class="stat-label">overdue</span></div>
+          <div class="stat ok"><span class="stat-num" data-stat="paid">–</span><span class="stat-label">paid</span></div>
+        </div>
+        <div id="invoicesGrid" class="ag-theme-quartz grid-invoices"></div>
+      </section>
+
+      <section class="panel agent" aria-labelledby="agentTitle">
+        <div class="panel-head">
+          <h2 id="agentTitle">Billing agent</h2>
+          <span class="agent-note">Drafts only. You send.</span>
+        </div>
+        <div class="chat" id="chat" aria-live="polite">
+          <div class="msg bot">I can check your PayPal invoices and draft reminders for clients who haven't paid. Nothing goes out until you click send.</div>
+        </div>
+        <div class="chips" id="chips">
+          <button type="button" class="chip">Who hasn't paid me?</button>
+          <button type="button" class="chip">Draft reminders for overdue invoices</button>
+          <button type="button" class="chip">How much have I been paid?</button>
+        </div>
+        <form id="chatForm" class="chat-form">
+          <label class="sr-only" for="chatInput">Ask the billing agent</label>
+          <input id="chatInput" placeholder="Ask about your invoices" autocomplete="off" maxlength="1000">
+          <button class="btn btn-ink" type="submit">Ask</button>
+        </form>
+      </section>
+    </div>
+  </main>
+
+  <div class="toast hidden" id="toast" role="alert"></div>
+  <script src="/static/app.js?v=2"></script>
+</body>
+</html>
