@@ -19,7 +19,15 @@ services:
         sync: false
       - key: GEMINI_MODEL
         value: gemini-3.8-flash
-      - key: GITHUB_TOKEN
-        sync: false
+      - key: GEMINI_FALLBACK_MODELS
+        value: gemini-3.6-flash,gemini-3.5-flash-lite,gemini-3.1-flash-lite
+      - key: SELLER_TIMEZONE
+        value: America/Los_Angeles
+      - key: SELLER_NAME
+        value: Maksuda Akther Tumpa
+      - key: DEFAULT_CLIENT_NAME
+        value: Kopi Labs
       - key: DEFAULT_CLIENT_EMAIL
-        sync: false
+        value: sb-0tp6v53708007@personal.example.com
+      - key: AI_REQUESTS_PER_HOUR
+        value: "30"
