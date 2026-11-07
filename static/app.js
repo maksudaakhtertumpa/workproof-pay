@@ -87,6 +87,7 @@ async function loadConfig() {
     [
       ["PayPal", cfg.paypal_ready],
       ["Gemini", cfg.gemini_ready],
+      ...(cfg.webhooks_ready ? [["Live webhooks", true]] : []),
     ].map(([name, ok]) => `<span class="dot ${ok ? "" : "off"}" title="${ok ? `${name} connected` : "Missing key in .env"}">${esc(name)}</span>`).join("");
   if (!cfg.paypal_ready || !cfg.gemini_ready) {
     toast("Some keys are missing. Copy .env.example to .env and add your keys, then restart.", "error");
@@ -290,6 +291,24 @@ function createInvoicesGrid() {
   });
 }
 
+// PayPal webhook events: the server receives them, the page shows them within seconds
+let eventsSince = Date.now() / 1000;
+async function pollEvents() {
+  if (document.hidden) return;
+  try {
+    const { events, now } = await api(`/api/events?since=${eventsSince}`);
+    eventsSince = now;
+    if (!events.length) return;
+    events.forEach(e => {
+      const amount = e.amount ? ` (${money(e.amount, e.currency)})` : "";
+      const msg = `PayPal: ${e.client_name} ${e.text} invoice ${e.invoice_number || ""}${amount}.`;
+      toast(msg, e.type === "INVOICING.INVOICE.PAID" ? "success" : "");
+      if (e.type === "INVOICING.INVOICE.PAID") addMsg("bot", `Good news: ${e.client_name} just paid invoice ${e.invoice_number}${amount}. PayPal told me through a webhook.`);
+    });
+    loadInvoices(true);
+  } catch { /* ignore; next poll retries */ }
+}
+
 async function loadInvoices(quiet = false) {
   if (!state.config?.paypal_ready) return;
   try {
@@ -391,4 +410,5 @@ document.addEventListener("DOMContentLoaded", async () => {
   try { await loadConfig(); } catch (err) { toast(err.message, "error"); }
   loadInvoices(true);
   setInterval(() => { if (!document.hidden) loadInvoices(true); }, 20000);
+  if (state.config?.webhooks_ready) setInterval(pollEvents, 4000);
 });

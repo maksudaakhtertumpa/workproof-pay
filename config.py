@@ -22,6 +22,9 @@ PAYPAL_ENVIRONMENT = os.getenv("PAYPAL_ENVIRONMENT", "SANDBOX").strip().upper()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.8-flash").strip()
 
+# Webhook ID from PayPal Developer Dashboard -> your app -> Webhooks (for live 'paid' updates).
+PAYPAL_WEBHOOK_ID = os.getenv("PAYPAL_WEBHOOK_ID", "").strip()
+
 # Optional: raises the GitHub API limit from 60 to 5,000 requests per hour.
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "").strip()
 

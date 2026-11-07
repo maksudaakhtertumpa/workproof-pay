@@ -56,6 +56,10 @@ class FakePayPal:
                 return httpx.Response(200, json={"rel": "payer-view", "href": inv["detail"]["metadata"]["recipient_view_url"]})
             if path.endswith("/remind"):
                 return httpx.Response(204)
+        if path == "/v1/notifications/verify-webhook-signature":
+            body = httpx.Response(200, content=request.content).json()
+            ok = body["transmission_sig"] == "good-sig" and body["webhook_id"] == "WH-1"
+            return httpx.Response(200, json={"verification_status": "SUCCESS" if ok else "FAILURE"})
         return httpx.Response(400, json={"name": "BAD", "message": f"unexpected {method} {path}"})
 
 
@@ -184,3 +188,33 @@ def test_parse_repo():
     from github_tool import parse_repo
     assert parse_repo("https://github.com/paypal/agent-toolkit.git") == ("paypal", "agent-toolkit")
     assert parse_repo("octocat/hello-world") == ("octocat", "hello-world")
+
+
+WEBHOOK_HEADERS = {
+    "paypal-auth-algo": "SHA256withRSA", "paypal-cert-url": "https://api.sandbox.paypal.com/cert",
+    "paypal-transmission-id": "t-1", "paypal-transmission-time": "2026-11-07T08:00:00Z",
+}
+PAID_EVENT = {
+    "id": "WH-EVT-1", "event_type": "INVOICING.INVOICE.PAID",
+    "resource": {"invoice": {"id": "INV2-X", "detail": {"invoice_number": "0007"},
+                             "amount": {"currency_code": "USD", "value": "770.00"},
+                             "primary_recipients": [{"billing_info": {"business_name": "Kopi Labs"}}]}},
+}
+
+
+def test_webhook_verified_and_deduplicated(api, fake_paypal, monkeypatch):
+    monkeypatch.setattr(config, "PAYPAL_WEBHOOK_ID", "WH-1")
+    main.WEBHOOK_EVENTS.clear(); main._seen_event_ids.clear()
+    r = api.post("/api/paypal/webhook", json=PAID_EVENT, headers={**WEBHOOK_HEADERS, "paypal-transmission-sig": "good-sig"})
+    assert r.status_code == 200 and r.json() == {"ok": True}
+    again = api.post("/api/paypal/webhook", json=PAID_EVENT, headers={**WEBHOOK_HEADERS, "paypal-transmission-sig": "good-sig"})
+    assert again.json()["duplicate"] is True
+    events = api.get("/api/events?since=0").json()["events"]
+    assert len(events) == 1 and events[0]["client_name"] == "Kopi Labs" and events[0]["text"] == "paid"
+
+
+def test_webhook_rejects_bad_signature(api, fake_paypal, monkeypatch):
+    monkeypatch.setattr(config, "PAYPAL_WEBHOOK_ID", "WH-1")
+    main.WEBHOOK_EVENTS.clear(); main._seen_event_ids.clear()
+    r = api.post("/api/paypal/webhook", json=PAID_EVENT, headers={**WEBHOOK_HEADERS, "paypal-transmission-sig": "forged"})
+    assert r.status_code == 400 and not main.WEBHOOK_EVENTS

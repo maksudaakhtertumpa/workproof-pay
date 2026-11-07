@@ -117,6 +117,7 @@ def get_config():
         },
         "currencies": sorted(config.SUPPORTED_CURRENCIES),
         "max_invoice_total": config.MAX_INVOICE_TOTAL,
+        "webhooks_ready": bool(config.PAYPAL_WEBHOOK_ID),
     }
 
 
@@ -288,6 +289,64 @@ def send_reminder(invoice_id: str, req: ReminderRequest):
         raise HTTPException(400, f"Invoice {inv['number']} is {inv['status']}; no reminder needed.")
     pp.send_reminder(invoice_id, req.subject, req.message)
     return {"ok": True, "invoice_number": inv["number"]}
+
+
+# ------------------------------------------------------------------ PayPal webhooks
+# PayPal calls this URL the moment an invoice is paid, so the dashboard updates live.
+
+WEBHOOK_EVENTS: deque = deque(maxlen=50)
+_seen_event_ids: set[str] = set()
+INVOICE_EVENT_TEXT = {
+    "INVOICING.INVOICE.PAID": "paid",
+    "INVOICING.INVOICE.REFUNDED": "was refunded",
+    "INVOICING.INVOICE.CANCELLED": "was cancelled",
+    "INVOICING.INVOICE.UPDATED": "was updated",
+    "INVOICING.INVOICE.CREATED": "was created",
+}
+
+
+@app.post("/api/paypal/webhook")
+async def paypal_webhook(request: Request):
+    try:
+        event = await request.json()
+    except ValueError:
+        raise HTTPException(400, "Invalid JSON")
+    if not config.PAYPAL_WEBHOOK_ID:
+        raise HTTPException(503, "PAYPAL_WEBHOOK_ID is not configured")
+    if not paypal().verify_webhook(dict(request.headers), event, config.PAYPAL_WEBHOOK_ID):
+        log.warning("Rejected a webhook with an invalid PayPal signature")
+        raise HTTPException(400, "Signature verification failed")
+
+    event_id = event.get("id", "")
+    if event_id in _seen_event_ids:  # PayPal may deliver the same event more than once
+        return {"ok": True, "duplicate": True}
+    _seen_event_ids.add(event_id)
+
+    event_type = event.get("event_type", "")
+    resource = event.get("resource") or {}
+    invoice = resource.get("invoice") or resource
+    detail = invoice.get("detail") or {}
+    recipients = invoice.get("primary_recipients") or [{}]
+    billing = (recipients[0] or {}).get("billing_info", {}) if recipients else {}
+    item = {
+        "id": event_id,
+        "type": event_type,
+        "invoice_id": invoice.get("id"),
+        "invoice_number": detail.get("invoice_number"),
+        "client_name": billing.get("business_name") or billing.get("email_address") or "Your client",
+        "amount": (invoice.get("amount") or {}).get("value"),
+        "currency": (invoice.get("amount") or {}).get("currency_code"),
+        "text": INVOICE_EVENT_TEXT.get(event_type, event_type.lower()),
+        "received_at": time.time(),
+    }
+    WEBHOOK_EVENTS.append(item)
+    log.info("PayPal webhook: %s for invoice %s", event_type, item["invoice_number"])
+    return {"ok": True}
+
+
+@app.get("/api/events")
+def recent_events(since: float = 0):
+    return {"events": [e for e in WEBHOOK_EVENTS if e["received_at"] > since], "now": time.time()}
 
 
 # ------------------------------------------------------------------ agent

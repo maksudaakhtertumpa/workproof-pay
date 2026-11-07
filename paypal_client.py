@@ -208,6 +208,25 @@ class PayPalClient:
         )
         return resp.json().get("items", [])
 
+    def verify_webhook(self, headers: dict[str, str], event: dict[str, Any], webhook_id: str) -> bool:
+        """Ask PayPal whether a webhook really came from PayPal (signature check)."""
+        h = {k.lower(): v for k, v in headers.items()}
+        needed = ["paypal-auth-algo", "paypal-cert-url", "paypal-transmission-id",
+                  "paypal-transmission-sig", "paypal-transmission-time"]
+        if not webhook_id or any(not h.get(k) for k in needed):
+            return False
+        body = {
+            "auth_algo": h["paypal-auth-algo"],
+            "cert_url": h["paypal-cert-url"],
+            "transmission_id": h["paypal-transmission-id"],
+            "transmission_sig": h["paypal-transmission-sig"],
+            "transmission_time": h["paypal-transmission-time"],
+            "webhook_id": webhook_id,
+            "webhook_event": event,
+        }
+        resp = self._request("POST", "/v1/notifications/verify-webhook-signature", json=body)
+        return resp.json().get("verification_status") == "SUCCESS"
+
     def send_reminder(self, invoice_id: str, subject: str, note: str) -> None:
         self._request(
             "POST",
