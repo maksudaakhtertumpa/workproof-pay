@@ -6,6 +6,8 @@ Run:  pytest -q
 from datetime import date, timedelta
 from types import SimpleNamespace
 
+import uuid
+
 import httpx
 import pytest
 from fastapi.testclient import TestClient
@@ -74,9 +76,20 @@ def fake_paypal(monkeypatch):
     return fake
 
 
+class BrowserLikeClient(TestClient):
+    """Like the browser: every invoice send carries a fresh draft request ID unless the test sets one."""
+
+    def post(self, url, *args, json=None, **kwargs):
+        if url == "/api/invoices" and isinstance(json, dict) and "request_id" not in json:
+            json = {**json, "request_id": f"test-{uuid.uuid4().hex}"}
+        return super().post(url, *args, json=json, **kwargs)
+
+
 @pytest.fixture
 def api():
-    return TestClient(main.app)
+    main._sent_requests.clear()
+    yield BrowserLikeClient(main.app)
+    main._sent_requests.clear()
 
 
 # ------------------------------------------------------------------ tests

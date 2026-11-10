@@ -8,7 +8,9 @@ from __future__ import annotations
 import json
 import logging
 import re
+import threading
 import time
+import zlib
 from collections import defaultdict, deque
 from datetime import date, timedelta
 from decimal import Decimal
@@ -319,7 +321,8 @@ class CreateInvoiceRequest(BaseModel):
     evidence: dict[str, EvidenceRef] = {}
     milestones: list[Milestone] = Field([], max_length=12)
     # A random ID per draft from the browser: a retry with the same ID never creates a second invoice.
-    request_id: str = Field("", max_length=64, pattern=r"^[A-Za-z0-9-]*$")
+    # Required, so every send is protected against double billing.
+    request_id: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9-]+$")
 
     @field_validator("currency")
     @classmethod
@@ -365,12 +368,23 @@ def recipient_allowed(email: str) -> bool:
     return any(domain == d or domain.endswith("." + d) for d in config.ALLOWED_RECIPIENT_DOMAINS)
 
 
+# One lock per request ID (striped, so memory stays fixed): two identical sends that arrive at the same moment
+# run one after the other, and the second finds the invoice the first one made. The app runs as a single
+# process on Render, so this lock covers every request it receives.
+_send_locks = [threading.Lock() for _ in range(64)]
+
+
 @app.post("/api/invoices")
 def create_and_send_invoice(req: CreateInvoiceRequest, request: Request):
+    with _send_locks[zlib.crc32(req.request_id.encode()) % len(_send_locks)]:
+        return _create_and_send(req, request)
+
+
+def _create_and_send(req: CreateInvoiceRequest, request: Request):
     now = time.time()
     for key in [k for k, (t, _) in _sent_requests.items() if now - t > 3600]:
         _sent_requests.pop(key, None)
-    if req.request_id and req.request_id in _sent_requests:
+    if req.request_id in _sent_requests:
         log.info("Duplicate send for request %s: returning the invoice already sent", req.request_id)
         return _sent_requests[req.request_id][1]
     if not recipient_allowed(req.client_email):
@@ -387,7 +401,7 @@ def create_and_send_invoice(req: CreateInvoiceRequest, request: Request):
         )
     # Duplicate protection that survives a server restart: the draft's request ID is stored on the
     # invoice in PayPal itself, so a retry finds the invoice it already made instead of billing twice.
-    reference = f"wp-{req.request_id}" if req.request_id else ""
+    reference = f"wp-{req.request_id}"
     existing = pp.find_by_reference(reference)
     if existing and existing.get("status") != "DRAFT":
         log.info("Request %s already has invoice %s (%s); not sending again", req.request_id, existing["id"], existing.get("status"))
