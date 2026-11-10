@@ -8,6 +8,7 @@ Built for the [PayPal AI Hackathon 2026](https://paypalaihackathon.devpost.com/)
 
 - 🌐 **Live demo:** https://workproof-pay.onrender.com (a scheduled GitHub Action keeps the free server awake; if it was asleep, allow up to a minute)
 - 🧪 **Demo proof-of-work repo:** https://github.com/maksudaakhtertumpa/kopi-labs-website
+- ⚡ **Try it in 30 seconds:** open the live demo → click **Try the demo** → click **Draft invoice from my work**.
 
 ---
 
