@@ -129,9 +129,13 @@ h2 { font-size: var(--t-lg); line-height: 1.25; font-weight: 700; }
 
 .lede { color: var(--muted); margin: 10px 0 26px; max-width: 62ch; }
 .tagline strong { color: #fff; font-weight: 700; }
-.demo-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: -12px 0 24px; padding: 10px 14px;
-  border: 1px dashed var(--line-strong); border-radius: 10px; color: var(--muted); font-size: var(--t-sm); }
+.demo-bar { display: flex; align-items: center; gap: 14px; margin: -10px 0 26px; padding: 14px 16px;
+  background: #eef6f2; border: 1.5px solid #9fd2bd; border-radius: 12px; color: #2f4a40; font-size: var(--t-sm); }
 .demo-bar .btn { flex: none; }
+.demo-bar b { color: var(--ink); }
+.demo-bar.nudge { animation: nudge 0.9s ease 2; }
+@keyframes nudge { 0%, 100% { box-shadow: 0 0 0 0 rgba(11, 138, 107, 0); } 50% { box-shadow: 0 0 0 6px rgba(11, 138, 107, 0.35); } }
+@media (max-width: 600px) { .demo-bar { flex-direction: column; align-items: flex-start; } }
 .demo-sample { background: #fff7e0; border: 1px solid #f2d68a; color: #6b5310; border-radius: 10px; padding: 10px 14px; margin: 0 0 16px; font-size: var(--t-sm); }
 
 /* ---------- forms ---------- */

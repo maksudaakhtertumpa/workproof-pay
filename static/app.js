@@ -146,6 +146,14 @@ async function onAnalyze(e) {
     context: f.context.value.trim(),
     milestones: f.milestones.value.trim(),
   };
+  if (state.source === "github" && !f.repo.value.trim()) {
+    toast("Enter a GitHub repo (owner/repo), or click “Try the demo” to fill in a sample project.", "error");
+    const bar = $(".demo-bar");
+    bar.scrollIntoView({ behavior: "smooth", block: "center" });
+    bar.classList.remove("nudge"); void bar.offsetWidth; bar.classList.add("nudge");
+    f.repo.focus({ preventScroll: true });
+    return;
+  }
   if (state.source === "github") {
     Object.assign(body, { repo: f.repo.value.trim(), since: f.since.value || null, until: f.until.value || null, author: f.author.value.trim() });
   } else {

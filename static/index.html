@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=Schibsted+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css?v=5">
+  <link rel="stylesheet" href="/static/style.css?v=6">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2314213F'/><path d='M9 6h14v20l-3-2-2 2-2-2-2 2-2-2-3 2z' fill='white'/><path d='M12.5 15.5l2.5 2.5 4.5-5' stroke='%230B8A6B' stroke-width='2.4' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>">
   <script src="https://cdn.jsdelivr.net/npm/ag-grid-community@32.3.3/dist/ag-grid-community.min.js"></script>
 </head>
@@ -38,8 +38,8 @@
         <h1 id="sheetTitle">Bill your client from the work you actually did</h1>
         <p class="lede">Point the AI at your commits, or paste a chat or time log. It drafts an itemized invoice and links every line to its evidence.</p>
         <div class="demo-bar">
-          <button type="button" class="btn btn-quiet btn-sm" id="demoBtn">Try the demo</button>
-          <span>Fills in a sample client project: 15 real commits and two agreed milestones.</span>
+          <button type="button" class="btn btn-ink" id="demoBtn">Try the demo</button>
+          <span><b>New here? Start with this.</b> It fills in every field below with a sample client project (15 real commits, two agreed milestones). Then click “Draft invoice from my work”.</span>
         </div>
 
         <fieldset class="block">
@@ -81,7 +81,7 @@
         <fieldset class="block">
           <legend>What did you agree to deliver? <span class="opt">optional</span></legend>
           <label class="hint-label">One milestone per line, with the agreed price if there is one. The AI checks each piece of work against them and flags anything outside the deal.
-            <textarea name="milestones" rows="3" maxlength="3000" placeholder="Phase 1: Landing page, menu and branding - USD 400&#10;Phase 2: Online booking with email notifications - USD 350"></textarea>
+            <textarea name="milestones" rows="3" maxlength="3000" placeholder="e.g. Phase 1: Landing page, menu and branding - USD 400&#10;Phase 2: Online booking with email notifications - USD 350"></textarea>
           </label>
         </fieldset>
 
@@ -175,6 +175,6 @@
   </main>
 
   <div class="toast hidden" id="toast" role="alert"></div>
-  <script src="/static/app.js?v=7"></script>
+  <script src="/static/app.js?v=8"></script>
 </body>
 </html>

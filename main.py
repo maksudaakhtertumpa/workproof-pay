@@ -252,7 +252,7 @@ def analyze(req: AnalyzeRequest, request: Request):
         return demo_draft_result(req, demo_draft, evidence, "The AI returned no line items this time")
     if req.source == "github":
         if not req.repo:
-            raise HTTPException(400, "Enter a GitHub repo, e.g. owner/repo")
+            raise HTTPException(400, "Enter a GitHub repo (owner/repo), or click “Try the demo” at the top to fill in a sample project.")
         until = req.until or date.today()
         since = req.since or (until - timedelta(days=7))
         if since > until:
