@@ -62,6 +62,7 @@ AI coding tools: this project was built with help from Claude (Anthropic) as a c
 - **No database.** PayPal is the source of truth for invoices and their status. The live "paid" notifications and webhook de-duplication are kept in memory, so a restart clears that short history (invoice statuses are re-read from PayPal, so nothing is lost). Render's free plan has no persistent disk, which is why the duplicate protection above lives in PayPal rather than in a local file.
 - **One server process.** The send lock is in memory, which covers every request because the app runs as a single process on Render. Running several instances would need a shared lock (for example a database or Redis); the PayPal reference check still prevents duplicates across restarts either way.
 - **Hour estimates need a human.** The AI's hours are a starting point; the freelancer is asked to correct them before sending.
+- **No login, on purpose for the demo.** The demo is one freelancer's sandbox account, so judges can open it without signing up. The invoice list, invoice details and billing agent therefore have no user authentication. A real multi-user version needs sign-in (for example "Log in with PayPal"), with each freelancer's own PayPal connection and invoices kept separate.
 - **Sandbox only.** The public demo runs on PayPal Sandbox and only sends to sandbox test accounts.
 
 ## Architecture

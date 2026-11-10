@@ -267,6 +267,7 @@ a.ev:hover { text-decoration: underline; }
 .badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 .badge.paid { background: var(--proof-soft); color: var(--proof); }
 .badge.open { background: var(--open-soft); color: var(--open); }
+.badge.pending { background: #eef2fb; color: #3a4f86; }
 .badge.overdue { background: var(--late-soft); color: var(--late); }
 .badge.other { background: #eef1f6; color: var(--muted); }
 .link-btn { font: inherit; font-size: var(--t-sm); font-weight: 600; background: none; border: 0; color: var(--ink); cursor: pointer; padding: 0 10px 0 0; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }

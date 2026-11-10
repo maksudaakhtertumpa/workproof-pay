@@ -136,3 +136,28 @@ def test_two_identical_sends_at_the_same_moment_make_one_invoice(api, fake_paypa
         t.join()
     assert len(fake_paypal.invoices) == 1
     assert len({r["invoice"]["id"] for r in results}) == 1
+
+
+# ---------- a pending payment is neither paid nor open
+
+def test_payment_pending_is_not_paid_and_gets_no_reminder():
+    from paypal_client import summarize_invoice
+    s = summarize_invoice({"id": "INV2-P", "status": "PAYMENT_PENDING",
+                           "detail": {"invoice_number": "0099", "payment_term": {"due_date": "2026-01-01"}}})
+    assert s["is_pending"] and not s["is_paid"] and not s["is_open"] and s["days_overdue"] == 0
+
+
+def test_stats_do_not_count_pending_as_paid(api, fake_paypal):
+    api.post("/api/invoices", json={**INVOICE, "request_id": "draft-p1"})
+    (inv,) = fake_paypal.invoices.values()
+    inv["status"] = "PAYMENT_PENDING"
+    stats = api.get("/api/invoices").json()["stats"]
+    assert stats["paid"] == 0 and stats["open"] == 0
+
+
+def test_agent_cannot_remind_a_pending_invoice(api, fake_paypal):
+    api.post("/api/invoices", json={**INVOICE, "request_id": "draft-p2"})
+    (inv,) = fake_paypal.invoices.values()
+    inv["status"] = "PAYMENT_PENDING"
+    r = api.post(f"/api/invoices/{inv['id']}/remind", json={"subject": "Reminder", "message": "Please pay"})
+    assert r.status_code == 400

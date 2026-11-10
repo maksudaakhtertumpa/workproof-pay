@@ -351,6 +351,7 @@ function statusBadge(p) {
   if (!r) return "";
   const label = (s) => esc(String(s || "").toLowerCase().replace(/_/g, " ").replace(/^./, c => c.toUpperCase()));
   if (r.is_paid) return `<span class="badge paid">Paid</span>`;
+  if (r.is_pending) return `<span class="badge pending" title="The client has paid, but PayPal hasn't released the money yet">Payment pending</span>`;
   if (r.is_open && r.days_overdue > 0) return `<span class="badge overdue">${r.days_overdue} days late</span>`;
   if (r.is_open) return `<span class="badge open">${label(r.status)}</span>`;
   return `<span class="badge other">${label(r.status)}</span>`;

@@ -324,7 +324,8 @@ def run_agent(
         """List the freelancer's PayPal invoices.
 
         Args:
-            status: Which invoices to return: "open" (sent but not fully paid), "paid", "overdue", or "all".
+            status: Which invoices to return: "open" (sent but not fully paid), "paid" (money received),
+                "pending" (client paid, money not cleared yet; never remind these), "overdue", or "all".
         """
         tool_log.append(f"find_invoices(status={status})")
         rows = _all()
@@ -332,6 +333,8 @@ def run_agent(
             rows = [r for r in rows if r["is_open"]]
         elif status == "paid":
             rows = [r for r in rows if r["is_paid"]]
+        elif status == "pending":
+            rows = [r for r in rows if r.get("is_pending")]
         elif status == "overdue":
             rows = [r for r in rows if r["is_open"] and r["days_overdue"] > 0]
         return [

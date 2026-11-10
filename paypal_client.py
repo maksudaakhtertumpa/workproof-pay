@@ -30,7 +30,10 @@ def seller_today() -> date:
 
 # Invoices that still need money from the client.
 OPEN_STATUSES = {"SENT", "UNPAID", "PARTIALLY_PAID"}
-PAID_STATUSES = {"PAID", "MARKED_AS_PAID", "PAYMENT_PENDING"}
+# Money received. A pending payment (e.g. an eCheck that hasn't cleared) is NOT paid yet, and NOT open either:
+# the client has already paid, so it must never get a payment reminder.
+PAID_STATUSES = {"PAID", "MARKED_AS_PAID"}
+PENDING_STATUSES = {"PAYMENT_PENDING"}
 
 
 class PayPalError(Exception):
@@ -301,6 +304,7 @@ def summarize_invoice(inv: dict[str, Any]) -> dict[str, Any]:
         "days_overdue": days_overdue,
         "is_open": status in OPEN_STATUSES,
         "is_paid": status in PAID_STATUSES,
+        "is_pending": status in PENDING_STATUSES,
         "payer_url": metadata.get("recipient_view_url") or payer_url_for(inv.get("id", "")),
         "note": (detail.get("note") or "")[:600],
     }
