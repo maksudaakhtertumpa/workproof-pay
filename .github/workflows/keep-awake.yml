@@ -4,7 +4,8 @@ name: Keep the live demo awake
 
 on:
   schedule:
-    - cron: "*/10 * * * *"
+    # Every 10 minutes, off the top of the hour when GitHub is busiest.
+    - cron: "7,17,27,37,47,57 * * * *"
   workflow_dispatch:
 
 jobs:
