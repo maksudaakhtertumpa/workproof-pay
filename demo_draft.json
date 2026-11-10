@@ -1,0 +1,189 @@
+{
+  "repo": "maksudaakhtertumpa/kopi-labs-website",
+  "since": "2026-10-31",
+  "until": "2026-11-07",
+  "made_on": "2026-11-10",
+  "commits": [
+    {
+      "id": "3d5e91f",
+      "sha": "3d5e91fcb5183eae28d88098db4301593304e1d8",
+      "message": "Polish booking button text and final QA fixes",
+      "date": "2026-11-07T01:40:00Z",
+      "author": "Maksuda Akther Tumpa",
+      "url": "https://github.com/maksudaakhtertumpa/kopi-labs-website/commit/3d5e91f"
+    },
+    {
+      "id": "4891c83",
+      "sha": "4891c838e53169719d11c22a2eacd97a83a3022f",
+      "message": "Add SEO basics: robots.txt and meta description",
+      "date": "2026-11-06T07:20:00Z",
+      "author": "Maksuda Akther Tumpa",
+      "url": "https://github.com/maksudaakhtertumpa/kopi-labs-website/commit/4891c83"
+    },
+    {
+      "id": "5ef948f",
+      "sha": "5ef948f0174af9dae6cd3aaab5882313c824f999",
+      "message": "Update hero copy after client review call",
+      "date": "2026-11-06T02:05:00Z",
+      "author": "Maksuda Akther Tumpa",
+      "url": "https://github.com/maksudaakhtertumpa/kopi-labs-website/commit/5ef948f"
+    },
+    {
+      "id": "ad1ff8f",
+      "sha": "ad1ff8f31bb10e291808e3b33d5016667b87a66f",
+      "message": "Add opening hours from client feedback",
+      "date": "2026-11-05T08:40:00Z",
+      "author": "Maksuda Akther Tumpa",
+      "url": "https://github.com/maksudaakhtertumpa/kopi-labs-website/commit/ad1ff8f"
+    },
+    {
+      "id": "3cce3e5",
+      "sha": "3cce3e5401c51c543c8c098d3cb00343304a3c6a",
+      "message": "Fix header and hero layout on small screens",
+      "date": "2026-11-05T03:15:00Z",
+      "author": "Maksuda Akther Tumpa",
+      "url": "https://github.com/maksudaakhtertumpa/kopi-labs-website/commit/3cce3e5"
+    },
+    {
+      "id": "3f91d86",
+      "sha": "3f91d86b1b985664e31d3a926c50cafd66077dc2",
+      "message": "Fix slow image loading on mobile: lazy-load and serve WebP",
+      "date": "2026-11-04T06:30:00Z",
+      "author": "Maksuda Akther Tumpa",
+      "url": "https://github.com/maksudaakhtertumpa/kopi-labs-website/commit/3f91d86"
+    },
+    {
+      "id": "486edb5",
+      "sha": "486edb578c6916aca454a14bdc315c78c2c0d396",
+      "message": "Style booking form",
+      "date": "2026-11-04T01:50:00Z",
+      "author": "Maksuda Akther Tumpa",
+      "url": "https://github.com/maksudaakhtertumpa/kopi-labs-website/commit/486edb5"
+    },
+    {
+      "id": "9c71e50",
+      "sha": "9c71e50f61ecd1d902950470bab2a06a801bd794",
+      "message": "Connect booking form to email notifications",
+      "date": "2026-11-03T10:10:00Z",
+      "author": "Maksuda Akther Tumpa",
+      "url": "https://github.com/maksudaakhtertumpa/kopi-labs-website/commit/9c71e50"
+    },
+    {
+      "id": "b6f2006",
+      "sha": "b6f2006b65af389be98e99a7e376db2fc6f031d4",
+      "message": "Validate booking dates and submit to bookings API",
+      "date": "2026-11-03T07:45:00Z",
+      "author": "Maksuda Akther Tumpa",
+      "url": "https://github.com/maksudaakhtertumpa/kopi-labs-website/commit/b6f2006"
+    },
+    {
+      "id": "f312f75",
+      "sha": "f312f75af1b35e81f8accc661413e4f848b39899",
+      "message": "Build online booking form with date picker",
+      "date": "2026-11-03T02:00:00Z",
+      "author": "Maksuda Akther Tumpa",
+      "url": "https://github.com/maksudaakhtertumpa/kopi-labs-website/commit/f312f75"
+    },
+    {
+      "id": "bca8c87",
+      "sha": "bca8c87d8bdf46bba47dfcd1a69c51a99e65fb46",
+      "message": "Build menu section loaded from menu.json",
+      "date": "2026-11-02T03:20:00Z",
+      "author": "Maksuda Akther Tumpa",
+      "url": "https://github.com/maksudaakhtertumpa/kopi-labs-website/commit/bca8c87"
+    },
+    {
+      "id": "24ebc23",
+      "sha": "24ebc236992fb2695761f328606897a58393439b",
+      "message": "Add navigation links to header",
+      "date": "2026-11-01T08:05:00Z",
+      "author": "Maksuda Akther Tumpa",
+      "url": "https://github.com/maksudaakhtertumpa/kopi-labs-website/commit/24ebc23"
+    },
+    {
+      "id": "760983b",
+      "sha": "760983b623ed5458b5b5522f895ad8cc1620e8f3",
+      "message": "Redesign landing page hero section with call to action",
+      "date": "2026-11-01T01:30:00Z",
+      "author": "Maksuda Akther Tumpa",
+      "url": "https://github.com/maksudaakhtertumpa/kopi-labs-website/commit/760983b"
+    },
+    {
+      "id": "b52b76e",
+      "sha": "b52b76eebc73829f578bfe08c39a5b771b612d1b",
+      "message": "Add brand colors and header styles",
+      "date": "2026-10-31T06:40:00Z",
+      "author": "Maksuda Akther Tumpa",
+      "url": "https://github.com/maksudaakhtertumpa/kopi-labs-website/commit/b52b76e"
+    },
+    {
+      "id": "0cc6803",
+      "sha": "0cc6803734569da3ef2f7fc197327de0ca994108",
+      "message": "Set up project structure and base page",
+      "date": "2026-10-31T02:12:00Z",
+      "author": "Maksuda Akther Tumpa",
+      "url": "https://github.com/maksudaakhtertumpa/kopi-labs-website/commit/0cc6803"
+    }
+  ],
+  "summary": "This invoice covers the completion of Phase 1 (Landing page, menu, and branding) and Phase 2 (Online booking system with email notifications) for Kopi Labs. It includes responsive web design, interactive menu integration, complete booking workflow, and performance optimizations.",
+  "line_items": [
+    {
+      "name": "Landing Page, Branding, and Header Setup",
+      "description": "Established initial project setup, integrated brand colors, created navigation header, and styled the landing page hero section with calls to action.",
+      "hours": 3.5,
+      "evidence": [
+        "0cc6803",
+        "b52b76e",
+        "24ebc23",
+        "760983b"
+      ],
+      "milestone": "M1"
+    },
+    {
+      "name": "Interactive Menu Section",
+      "description": "Built the dynamic menu section powered by JSON data to showcase products.",
+      "hours": 1.5,
+      "evidence": [
+        "bca8c87"
+      ],
+      "milestone": "M1"
+    },
+    {
+      "name": "Online Booking System",
+      "description": "Developed the interactive booking form featuring date pickers, form validation, custom styling, and API submission.",
+      "hours": 4.5,
+      "evidence": [
+        "f312f75",
+        "b6f2006",
+        "486edb5"
+      ],
+      "milestone": "M2"
+    },
+    {
+      "name": "Email Notification Integration & Booking QA",
+      "description": "Connected the booking form to automated email notifications and performed final booking workflow refinements.",
+      "hours": 2.0,
+      "evidence": [
+        "9c71e50",
+        "3d5e91f"
+      ],
+      "milestone": "M2"
+    },
+    {
+      "name": "Mobile Optimization, SEO & Copy Updates",
+      "description": "Improved mobile layout responsiveness, optimized image loading with WebP formats, added basic SEO tags, and updated copy based on client feedback.",
+      "hours": 2.5,
+      "evidence": [
+        "3f91d86",
+        "3cce3e5",
+        "ad1ff8f",
+        "5ef948f",
+        "4891c83"
+      ],
+      "milestone": "OUT"
+    }
+  ],
+  "flags": [
+    "Work regarding mobile optimizations, image performance, SEO basics, and feedback tweaks (totaling 2.5 hours) has been marked as OUT of scope from agreed milestones M1 and M2."
+  ]
+}

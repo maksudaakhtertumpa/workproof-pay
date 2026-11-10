@@ -5,6 +5,7 @@ Run locally:  uvicorn main:app --reload
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 import time
@@ -22,7 +23,7 @@ from pydantic import BaseModel, Field, field_validator
 
 import ai_agent
 import config
-from github_tool import GitHubError, fetch_commits
+from github_tool import GitHubError, fetch_commits, parse_repo
 from paypal_client import PayPalClient, PayPalError, money, payer_url_for, summarize_invoice
 
 app = FastAPI(title="WorkProof Pay", docs_url=None, redoc_url=None, openapi_url=None)
@@ -141,6 +142,14 @@ def get_config():
             "since": (date.today() - timedelta(days=7)).isoformat(),
             "until": date.today().isoformat(),
         },
+        "demo": {
+            "client_name": config.DEMO_CLIENT_NAME,
+            "repo": config.DEMO_REPO,
+            "since": config.DEMO_SINCE,
+            "until": config.DEMO_UNTIL,
+            "hourly_rate": config.DEMO_HOURLY_RATE,
+            "milestones": config.DEMO_MILESTONES,
+        },
         "currencies": sorted(config.SUPPORTED_CURRENCIES),
         "max_invoice_total": config.MAX_INVOICE_TOTAL,
         "webhooks_ready": bool(config.PAYPAL_WEBHOOK_ID),
@@ -164,10 +173,83 @@ class AnalyzeRequest(BaseModel):
     milestones: str = Field("", max_length=3000)
 
 
+DEMO_DRAFT_FILE = Path(__file__).parent / "demo_draft.json"
+AI_FAILURES = (ai_agent.GeminiTimeout, ai_agent.AIResponseError, genai_errors.APIError)
+
+
+def is_demo_request(req: AnalyzeRequest) -> bool:
+    """The exact 'Try the demo' request: same repo and dates, no author filter, demo or no milestones."""
+    if req.source != "github" or req.author.strip():
+        return False
+    try:
+        same_repo = "/".join(parse_repo(req.repo)).lower() == config.DEMO_REPO.lower()
+    except GitHubError:
+        return False
+    milestones = " ".join(req.milestones.split())
+    return (
+        same_repo
+        and str(req.since) == config.DEMO_SINCE
+        and str(req.until) == config.DEMO_UNTIL
+        and milestones in ("", " ".join(config.DEMO_MILESTONES.split()))
+    )
+
+
+def load_demo_draft() -> dict | None:
+    try:
+        return json.loads(DEMO_DRAFT_FILE.read_text())
+    except (OSError, ValueError):
+        return None
+
+
+def demo_draft_result(req: AnalyzeRequest, draft: dict, evidence: dict, reason: str) -> dict:
+    """Serve the saved AI draft for the demo project, clearly labelled, when Gemini can't answer."""
+    milestones = ai_agent.parse_milestones(req.milestones)
+    items = []
+    for item in draft["line_items"]:
+        valid = [e for e in item["evidence"] if e in evidence]
+        if valid:
+            items.append({**item, "evidence": valid, "milestone": item["milestone"] if milestones else ""})
+    used = {e for i in items for e in i["evidence"]}
+    return {
+        "summary": draft["summary"],
+        "line_items": items,
+        "flags": draft["flags"] if milestones else [],
+        "evidence": evidence,
+        "milestones": milestones,
+        "scope": ai_agent.scope_report(items, milestones, req.hourly_rate),
+        "stats": {"evidence_count": len(evidence), "evidence_used": len(used), "evidence_unused": len(evidence) - len(used)},
+        "sample_note": f"{reason}, so this is a saved AI draft of the same demo commits (made by Gemini on "
+        f"{draft.get('made_on', 'an earlier day')}). Everything else, including PayPal, is live.",
+    }
+
+
 @app.post("/api/analyze")
 def analyze(req: AnalyzeRequest, request: Request):
-    require_gemini()
+    demo = is_demo_request(req)
+    demo_draft = load_demo_draft() if demo else None
+    if not demo_draft:
+        require_gemini()
     rate_limit(request)
+    if demo_draft and req.source == "github":
+        try:
+            commits = fetch_commits(req.repo, req.since, req.until, config.GITHUB_TOKEN, "")
+        except GitHubError:
+            commits = demo_draft["commits"]  # GitHub busy or rate-limited: use the saved copy of the same commits
+            log.warning("GitHub unavailable; using the %d saved demo commits", len(commits))
+        evidence_text, evidence = ai_agent.build_evidence_from_commits(commits)
+        if not config.GEMINI_API_KEY:
+            return demo_draft_result(req, demo_draft, evidence, "The AI is not configured on this server")
+        try:
+            result = ai_agent.analyze_work(
+                config.GEMINI_API_KEY, config.GEMINI_MODEL, evidence_text, evidence, req.hourly_rate,
+                req.currency, req.client_name, req.context, milestones=ai_agent.parse_milestones(req.milestones),
+            )
+        except AI_FAILURES as e:
+            log.warning("Gemini failed for the demo request (%s); serving the saved demo draft", type(e).__name__)
+            return demo_draft_result(req, demo_draft, evidence, "Gemini couldn't answer right now (its free tier is often busy)")
+        if result["line_items"]:
+            return result
+        return demo_draft_result(req, demo_draft, evidence, "The AI returned no line items this time")
     if req.source == "github":
         if not req.repo:
             raise HTTPException(400, "Enter a GitHub repo, e.g. owner/repo")

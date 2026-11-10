@@ -101,15 +101,36 @@ async function loadConfig() {
   }
 }
 
+function selectSource(source) {
+  state.source = source;
+  $$(".tab").forEach(t => {
+    const on = t.dataset.source === source;
+    t.classList.toggle("active", on);
+    t.setAttribute("aria-selected", on);
+  });
+  $$("[data-source-panel]").forEach(p => p.classList.toggle("hidden", p.dataset.sourcePanel !== source));
+}
+
+// "Try the demo": a sample client repo whose commits are fixed in time, so it always has work to bill
+function fillDemo() {
+  const d = state.config?.demo;
+  if (!d) return;
+  const f = $("#analyzeForm");
+  selectSource("github");
+  f.client_name.value = d.client_name;
+  if (!f.client_email.value) f.client_email.value = state.config.defaults.client_email || "";
+  f.hourly_rate.value = d.hourly_rate;
+  f.repo.value = d.repo;
+  f.since.value = d.since;
+  f.until.value = d.until;
+  f.author.value = "";
+  f.milestones.value = d.milestones;
+  toast("Demo filled in. Click “Draft invoice from my work”.", "success");
+  $("#analyzeBtn").focus();
+}
+
 function setupTabs() {
-  $$(".tab").forEach(tab => tab.addEventListener("click", () => {
-    state.source = tab.dataset.source;
-    $$(".tab").forEach(t => {
-      t.classList.toggle("active", t === tab);
-      t.setAttribute("aria-selected", t === tab);
-    });
-    $$("[data-source-panel]").forEach(p => p.classList.toggle("hidden", p.dataset.sourcePanel !== state.source));
-  }));
+  $$(".tab").forEach(tab => tab.addEventListener("click", () => selectSource(tab.dataset.source)));
 }
 
 // ------------------------------------------------------------ step 1: analyze
@@ -224,6 +245,9 @@ function renderReview(result) {
   const s = result.stats;
   $("#evidenceStats").textContent =
     `AI grouped ${s.evidence_used} of ${s.evidence_count} evidence entries into ${result.line_items.length} line items at ${money(state.form.hourly_rate, state.form.currency)}/hour.`;
+  const note = $("#sampleNote");
+  note.textContent = result.sample_note || "";
+  note.classList.toggle("hidden", !result.sample_note);
   const flags = $("#flags");
   if (result.flags.length) {
     flags.innerHTML = `<b>Please double-check:</b><ul>${result.flags.map(f => `<li>${esc(f)}</li>`).join("")}</ul>`;
@@ -464,6 +488,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   createItemsGrid();
   createInvoicesGrid();
   $("#analyzeForm").addEventListener("submit", onAnalyze);
+  $("#demoBtn").addEventListener("click", fillDemo);
   $("#backBtn").addEventListener("click", () => showStep(1));
   $("#newInvoiceBtn").addEventListener("click", () => showStep(1));
   $("#addRowBtn").addEventListener("click", () => {

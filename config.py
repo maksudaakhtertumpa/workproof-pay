@@ -37,6 +37,18 @@ DEFAULT_CLIENT_EMAIL = os.getenv("DEFAULT_CLIENT_EMAIL", "")
 DEFAULT_CURRENCY = os.getenv("DEFAULT_CURRENCY", "USD").upper()
 DEFAULT_HOURLY_RATE = _float("DEFAULT_HOURLY_RATE", 40)
 
+# The "Try the demo" button: a sample client project whose commits stay fixed in time,
+# so the demo works the same during judging as on the day it was built.
+DEMO_CLIENT_NAME = "Kopi Labs"
+DEMO_REPO = os.getenv("DEMO_REPO", "maksudaakhtertumpa/kopi-labs-website").strip()
+DEMO_SINCE = os.getenv("DEMO_SINCE", "2026-10-31").strip()
+DEMO_UNTIL = os.getenv("DEMO_UNTIL", "2026-11-07").strip()
+DEMO_HOURLY_RATE = DEFAULT_HOURLY_RATE
+DEMO_MILESTONES = (
+    "Phase 1: Landing page, menu and branding - USD 400\n"
+    "Phase 2: Online booking with email notifications - USD 350"
+)
+
 # Guardrails
 MAX_INVOICE_TOTAL = _float("MAX_INVOICE_TOTAL", 5000)
 AI_REQUESTS_PER_HOUR = int(_float("AI_REQUESTS_PER_HOUR", 60))

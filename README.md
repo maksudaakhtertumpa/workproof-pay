@@ -1,10 +1,12 @@
 # WorkProof Pay
 
+> **No commit, no charge.**
+
 **An AI agent that turns a freelancer's GitHub commits, time logs or chat threads into PayPal invoices, then follows up until they're paid.**
 
 Built for the [PayPal AI Hackathon 2026](https://paypalaihackathon.devpost.com/) · Python + FastAPI · Google Gemini · PayPal Invoicing API v2 + Webhooks (sandbox)
 
-- 🌐 **Live demo:** https://workproof-pay.onrender.com (free server: allow up to a minute to wake up)
+- 🌐 **Live demo:** https://workproof-pay.onrender.com (a scheduled GitHub Action keeps the free server awake; if it was asleep, allow up to a minute)
 - 🧪 **Demo proof-of-work repo:** https://github.com/maksudaakhtertumpa/kopi-labs-website
 
 ---
@@ -69,12 +71,12 @@ FastAPI (main.py), hosted on Render
 ## Testing for judges
 
 - **Live demo:** https://workproof-pay.onrender.com, running in PayPal **Sandbox** (no real money moves).
-- **Try it:** enter repo `maksudaakhtertumpa/kopi-labs-website`, keep the default dates, and paste these milestones:
+- **Try it:** click **Try the demo**, then **Draft invoice from my work**. The button fills in the sample client project: repo `maksudaakhtertumpa/kopi-labs-website`, dates **2026-10-31 to 2026-11-07** (its 15 commits) and these milestones:
   ```
   Phase 1: Landing page, menu and branding - USD 400
   Phase 2: Online booking with email notifications - USD 350
   ```
-  Then click **Draft invoice from my work**.
+- **If Gemini's free tier is busy,** the demo shows a saved AI draft of the same commits, clearly labelled, so you can still test the PayPal part end to end. Any other repo or dates always use live AI.
 - **Pay an invoice:** click **View** next to an invoice, open it in a private window, log in with the sandbox buyer `sb-0tp6v53708007@personal.example.com`, password `7W2<Uu.%`, and pay with the **Visa** card. The dashboard turns it Paid within seconds.
 - **Automated tests** (no keys needed; PayPal and Gemini are faked):
   ```bash
@@ -105,7 +107,7 @@ Open <http://127.0.0.1:8000>.
 2. **Sandbox client (buyer):** **Testing Tools → Sandbox Accounts** → **Create account** → Personal, **United States**. Put its email in `DEFAULT_CLIENT_EMAIL`.
 3. **Gemini:** [aistudio.google.com](https://aistudio.google.com/) → **Get API key** → `GEMINI_API_KEY`.
 4. **Webhooks (optional, needs a public URL):** in your app → **Webhooks** → add `https://<your-host>/api/paypal/webhook` with the invoice paid, cancelled, refunded and updated events → copy the **Webhook ID** into `PAYPAL_WEBHOOK_ID`.
-5. **Demo repo (optional):** `bash scripts/make_demo_repo.sh` creates a sample client project with 15 commits over the last week.
+5. **Demo repo (optional):** `bash scripts/make_demo_repo.sh` creates a sample client project with 15 commits over the last week. Point `DEMO_REPO`, `DEMO_SINCE` and `DEMO_UNTIL` at it, then run `python scripts/make_demo_draft.py` to save the backup AI draft for **Try the demo**.
 
 ## Deploy to Render
 

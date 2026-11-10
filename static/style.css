@@ -128,6 +128,11 @@ h2 { font-size: var(--t-lg); line-height: 1.25; font-weight: 700; }
 .step.done .step-n::after { content: "✓"; font-size: 12px; }
 
 .lede { color: var(--muted); margin: 10px 0 26px; max-width: 62ch; }
+.tagline strong { color: #fff; font-weight: 700; }
+.demo-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: -12px 0 24px; padding: 10px 14px;
+  border: 1px dashed var(--line-strong); border-radius: 10px; color: var(--muted); font-size: var(--t-sm); }
+.demo-bar .btn { flex: none; }
+.demo-sample { background: #fff7e0; border: 1px solid #f2d68a; color: #6b5310; border-radius: 10px; padding: 10px 14px; margin: 0 0 16px; font-size: var(--t-sm); }
 
 /* ---------- forms ---------- */
 fieldset.block { border: 0; padding: 0; margin: 0 0 22px; }
