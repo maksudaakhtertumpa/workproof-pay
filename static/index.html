@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=Schibsted+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css?v=6">
+  <link rel="stylesheet" href="/static/style.css?v=7">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2314213F'/><path d='M9 6h14v20l-3-2-2 2-2-2-2 2-2-2-3 2z' fill='white'/><path d='M12.5 15.5l2.5 2.5 4.5-5' stroke='%230B8A6B' stroke-width='2.4' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>">
   <script src="https://cdn.jsdelivr.net/npm/ag-grid-community@32.3.3/dist/ag-grid-community.min.js"></script>
 </head>
@@ -112,6 +112,7 @@
           <span class="items-title">Line items <span class="opt">Click a cell to edit.</span></span>
           <button class="btn btn-quiet btn-sm" id="addRowBtn" type="button">Add a line</button>
         </div>
+        <p class="hours-note" role="note"><b>Hours are AI estimates.</b> Commits show what you built, not how long it took. Check each estimate and change it to your real hours (or your time log) before you send.</p>
         <div id="itemsGrid" class="ag-theme-quartz grid-items"></div>
 
         <div class="totals">
@@ -120,7 +121,7 @@
         </div>
 
         <div class="confirm">
-          <label class="check"><input type="checkbox" id="confirmBox"> <span>I've checked the line items. Send this invoice to <b id="confirmEmail"></b>.</span></label>
+          <label class="check"><input type="checkbox" id="confirmBox"> <span>I've checked the line items and the hours are right. Send this invoice to <b id="confirmEmail"></b>.</span></label>
           <button class="btn btn-pay btn-lg" id="sendBtn" type="button" disabled>Send invoice with PayPal</button>
         </div>
       </div>
@@ -178,6 +179,6 @@
   </main>
 
   <div class="toast hidden" id="toast" role="alert"></div>
-  <script src="/static/app.js?v=8"></script>
+  <script src="/static/app.js?v=9"></script>
 </body>
 </html>

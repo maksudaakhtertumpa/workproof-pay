@@ -198,6 +198,9 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--i
 .summary-label textarea { font-size: var(--t-md); }
 .items-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 8px 0 10px; }
 .items-title { font-size: var(--t-md); font-weight: 700; color: var(--ink); }
+.hours-note { margin: 0 0 10px; padding: 8px 12px; border-left: 3px solid #e0b342; background: #fffaeb; color: #5b4a17; font-size: var(--t-sm); border-radius: 0 8px 8px 0; }
+.hours-note b { color: #3f3310; }
+.est-hours { background: #fffaeb; }
 .grid-items { width: 100%; margin-bottom: 4px; }
 .grid-items .proof-cell, .grid-items .proof-cell * { white-space: normal !important; overflow: visible; text-overflow: clip; }
 .ev-list { display: flex; flex-wrap: wrap; gap: 4px; padding: 2px 0; }

@@ -144,8 +144,12 @@ class PayPalClient:
         due_in_days: int,
         memo: str = "",
         seller_name: str = "",
+        reference: str = "",
     ) -> dict[str, Any]:
-        """Create a DRAFT invoice. Each item: name, description, hours, rate."""
+        """Create a DRAFT invoice. Each item: name, description, hours, rate.
+
+        `reference` is stored on the invoice in PayPal, so a retry can find it again even after a restart.
+        """
         today = seller_today()
         body = {
             "detail": {
@@ -179,6 +183,8 @@ class PayPalClient:
             ],
             "configuration": {"allow_tip": False, "tax_inclusive": False},
         }
+        if reference:
+            body["detail"]["reference"] = reference[:120]
         if seller_name:
             body["invoicer"] = {"business_name": seller_name[:300]}
         try:
@@ -211,13 +217,26 @@ class PayPalClient:
     def get_invoice(self, invoice_id: str) -> dict[str, Any]:
         return self._request("GET", f"/v2/invoicing/invoices/{invoice_id}").json()
 
-    def list_invoices(self, page_size: int = 50) -> list[dict[str, Any]]:
-        resp = self._request(
-            "GET",
-            "/v2/invoicing/invoices",
-            params={"page": 1, "page_size": page_size, "total_required": "false"},
-        )
-        return resp.json().get("items", [])
+    def list_invoices(self, page_size: int = 100, max_pages: int = 10) -> list[dict[str, Any]]:
+        """All invoices, newest first, reading page after page (up to max_pages × page_size)."""
+        invoices: list[dict[str, Any]] = []
+        for page in range(1, max_pages + 1):
+            resp = self._request(
+                "GET",
+                "/v2/invoicing/invoices",
+                params={"page": page, "page_size": page_size, "total_required": "false"},
+            )
+            items = resp.json().get("items", [])
+            invoices.extend(items)
+            if len(items) < page_size:
+                break
+        return invoices
+
+    def find_by_reference(self, reference: str) -> dict[str, Any] | None:
+        """The newest invoice whose reference matches, or None. PayPal keeps it, so this survives restarts."""
+        if not reference:
+            return None
+        return next((i for i in self.list_invoices() if (i.get("detail") or {}).get("reference") == reference), None)
 
     def verify_webhook(self, headers: dict[str, str], event: dict[str, Any], webhook_id: str) -> bool:
         """Ask PayPal whether a webhook really came from PayPal (signature check)."""

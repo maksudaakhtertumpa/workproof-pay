@@ -385,20 +385,35 @@ def create_and_send_invoice(req: CreateInvoiceRequest, request: Request):
         raise HTTPException(
             400, f"Total {req.currency} {money(total, req.currency)} is above the safety limit of {config.MAX_INVOICE_TOTAL}."
         )
-    items = [
-        {"name": i.name, "description": i.description, "hours": i.hours, "rate": req.hourly_rate}
-        for i in req.line_items
-    ]
-    invoice = pp.create_invoice(
-        client_name=req.client_name,
-        client_email=req.client_email,
-        currency=req.currency,
-        items=items,
-        note=build_note(req),
-        due_in_days=req.due_in_days,
-        memo="Created by WorkProof Pay from verified proof of work.",
-        seller_name=config.SELLER_NAME,
-    )
+    # Duplicate protection that survives a server restart: the draft's request ID is stored on the
+    # invoice in PayPal itself, so a retry finds the invoice it already made instead of billing twice.
+    reference = f"wp-{req.request_id}" if req.request_id else ""
+    existing = pp.find_by_reference(reference)
+    if existing and existing.get("status") != "DRAFT":
+        log.info("Request %s already has invoice %s (%s); not sending again", req.request_id, existing["id"], existing.get("status"))
+        already = summarize_invoice(existing)
+        result = {"invoice": already, "total": already["amount"] or money(total, req.currency)}
+        _sent_requests[req.request_id] = (time.time(), result)
+        return result
+    if existing:  # created before but never sent (e.g. the server stopped in between): send that one
+        log.info("Request %s has an unsent draft %s; sending it instead of creating a new one", req.request_id, existing["id"])
+        invoice = existing
+    else:
+        items = [
+            {"name": i.name, "description": i.description, "hours": i.hours, "rate": req.hourly_rate}
+            for i in req.line_items
+        ]
+        invoice = pp.create_invoice(
+            client_name=req.client_name,
+            client_email=req.client_email,
+            currency=req.currency,
+            items=items,
+            note=build_note(req),
+            due_in_days=req.due_in_days,
+            memo="Created by WorkProof Pay from verified proof of work.",
+            seller_name=config.SELLER_NAME,
+            reference=reference,
+        )
     send_result = pp.send_invoice(invoice["id"])
     # The invoice is now SENT. Reading it back is only for display: if that read fails,
     # report success anyway, so the user never retries and bills the client twice.
