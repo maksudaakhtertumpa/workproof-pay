@@ -77,7 +77,7 @@ FastAPI (main.py), hosted on Render
   Phase 2: Online booking with email notifications - USD 350
   ```
 - **If Gemini's free tier is busy,** the demo shows a saved AI draft of the same commits, clearly labelled, so you can still test the PayPal part end to end. Any other repo or dates always use live AI.
-- **Pay an invoice:** click **View** next to an invoice, open it in a private window, log in with the sandbox buyer `sb-0tp6v53708007@personal.example.com`, password `7W2<Uu.%`, and pay with the **Visa** card. The dashboard turns it Paid within seconds.
+- **Pay an invoice:** click **View** next to an invoice, open it in a private window, log in with the sandbox buyer `sb-0tp6v53708007@personal.example.com` (its password is in the **Testing instructions on the Devpost submission**), and pay with the **Visa** card. The dashboard turns it Paid within seconds.
 - **Automated tests** (no keys needed; PayPal and Gemini are faked):
   ```bash
   pip install -r requirements-dev.txt
